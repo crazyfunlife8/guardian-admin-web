@@ -1,0 +1,48 @@
+/* 守護者 OP 後台設計變數 */
+:root {
+  /* 背景 */
+  --bg-base: #0D1117;
+  --bg-panel: #151C26;
+  --bg-panel-raised: #1B2433;
+
+  /* 線條 */
+  --line: #2A3547;
+
+  /* 文字 */
+  --text-primary: #E8EDF4;
+  --text-secondary: #9AA7BA;
+
+  /* 語意色 */
+  --accent: #4C9AFF;
+  --ok: #3FB77E;
+  --warn: #E5B84B;
+  --danger: #E5604C;
+  --info: #58C1D4;
+  --mask: #6B7A92;
+
+  /* 字型 */
+  --sans: "IBM Plex Sans", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #app { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+@keyframes breath {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+@keyframes pulse {
+  0%   { opacity: .9; transform: translate(-50%, -50%) scale(.75); }
+  100% { opacity: 0;  transform: translate(-50%, -50%) scale(1.25); }
+}
+@keyframes slidein {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}

@@ -1,5 +1,5 @@
 <template>
-  <div class="map">
+  <div class="map" @click="onMapClick">
     <!-- SVG 示意底圖（API Key 到位後換成 <div ref="mapEl"> + Google Maps） -->
     <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" class="basemap">
       <rect class="district" x="0" y="0" width="1600" height="900"/>
@@ -92,6 +92,12 @@ const taskRings = [
   { id: 'r2', kind: 'locked',    x: '33%',   y: '52.5%', size: '70px' },
   { id: 'r3', kind: 'overdue',   x: '73%',   y: '62%',   size: '150px' },
 ]
+
+function onMapClick(e) {
+  if (!e.target.closest('.marker') && !e.target.closest('.evcard')) {
+    evStore.clearSelection()
+  }
+}
 
 function handleAction({ eventId, action }) {
   console.log('OP action', eventId, action)

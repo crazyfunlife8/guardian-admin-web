@@ -4,7 +4,7 @@
     <div class="d-head">
       <h2>{{ app.id }}</h2>
       <StatusBadge :label="STATUS_LABELS[app.status]" :variant="STATUS_VARIANTS[app.status]" />
-      <span v-if="isTerminated" class="terminated-note">此申請已終結，不可再操作</span>
+      <span v-if="isTerminated" class="terminated-note">{{ terminatedNote }}</span>
     </div>
 
     <!-- 狀態機流轉條 -->
@@ -20,7 +20,7 @@
     </InfoCard>
 
     <!-- 動作列（僅 pending 顯示） -->
-    <ActionBar v-if="!isTerminated">
+    <ActionBar v-if="app.status === 'pending'">
       <button class="btn primary" @click="openDialog('approve')">審核通過</button>
       <button class="btn danger"  @click="openDialog('reject')">拒絕申請</button>
     </ActionBar>
@@ -66,8 +66,8 @@ const store  = useReviewStore()
 const toast  = useToastStore()
 const { selectedApp: app } = storeToRefs(store)
 
-const STATUS_LABELS   = { pending: '待審核', approved: '已通過', rejected: '已拒絕' }
-const STATUS_VARIANTS = { pending: 'wait',   approved: 'ok',    rejected: 'danger' }
+const STATUS_LABELS   = { pending: '待審核', approved_pending: '已核准待綁定', active: '已開通', rejected: '已拒絕' }
+const STATUS_VARIANTS = { pending: 'wait',   approved_pending: 'info',          active: 'ok',      rejected: 'danger' }
 
 const REJECT_REASONS = [
   { value: 'mismatch', label: '資料不符' },
@@ -85,17 +85,29 @@ const DEFAULT_REASONS = [
 
 const isTerminated = computed(() => app.value?.status !== 'pending')
 
+const terminatedNote = computed(() => {
+  switch (app.value?.status) {
+    case 'approved_pending': return '已核准・等待申請人完成四項必綁'
+    case 'active':           return '已開通・申請流程已完結'
+    case 'rejected':         return '已拒絕・此申請已終結'
+    default:                 return null
+  }
+})
+
 const steps = computed(() => {
   const s = app.value?.status ?? 'pending'
-  const isDone = s !== 'pending'
+  if (s === 'rejected') {
+    return [
+      { label: '提交申請', state: 'done' },
+      { label: '審核中',   state: 'done' },
+      { label: '已拒絕',   state: 'now'  },
+    ]
+  }
   return [
-    { label: '提交申請', state: 'done',                lockAfter: false },
-    { label: '審核中',   state: isDone ? 'done' : 'now', lockAfter: false },
-    {
-      label: s === 'approved' ? '已通過' : s === 'rejected' ? '已拒絕' : '已通過 / 已拒絕',
-      state: isDone ? 'now' : 'pending',
-      lockAfter: false,
-    },
+    { label: '提交申請',     state: 'done' },
+    { label: '審核中',       state: s === 'pending'          ? 'now'    : 'done'    },
+    { label: '已核准待綁定', state: s === 'approved_pending' ? 'now'    : s === 'active' ? 'done' : 'pending' },
+    { label: '已開通',       state: s === 'active'           ? 'now'    : 'pending' },
   ]
 })
 
@@ -111,7 +123,7 @@ const timelineEntries = computed(() =>
 const DIALOG_CONFIG = {
   approve: {
     title:   '確認審核通過？',
-    body:    (a) => `將 ${a.id}（${a.name}）的情報員資格申請核准，申請人將收到通知並可開始接任務。`,
+    body:    (a) => `將 ${a.id}（${a.name}）的資格申請核准。申請人將收到通知，完成四項必綁後系統自動開通。`,
     reasons: DEFAULT_REASONS,
   },
   reject: {

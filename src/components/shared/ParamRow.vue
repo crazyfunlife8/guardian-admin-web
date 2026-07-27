@@ -1,13 +1,14 @@
 <!--
   ParamRow — C 型設定頁通用旋鈕列
   Props:
-    paramKey    String  參數唯一識別碼，emit 時原樣回傳給父層
-    label       String  顯示名稱
-    description String  說明文字（顯示於標籤下方）
-    value       Number  目前生效值（來自 store，響應式）
-    unit        String  單位文字（分 / 秒 / 元 / 公尺 / 積分:元…）
+    paramKey    String           參數唯一識別碼，emit 時原樣回傳給父層
+    label       String           顯示名稱
+    description String           說明文字（顯示於標籤下方）
+    value       Number           目前生效值（來自 store，響應式）；toggle 型以 0/1 表示關/開
+    unit        String           單位文字（分 / 秒 / 元 / 公尺 / 積分:元…）；toggle 型留空
+    type        'number'|'toggle' 旋鈕類型，預設 'number'
   Emits:
-    request-save(paramKey, newValue)  使用者點 ✓ 後觸發，父層負責 ConfirmDialog 與 store 寫入
+    request-save(paramKey, newValue)  使用者點 ✓ 或切換後觸發，父層負責 ConfirmDialog 與 store 寫入
 -->
 <template>
   <div class="param-row">
@@ -17,14 +18,20 @@
       <span class="param-desc">{{ description }}</span>
     </div>
 
-    <!-- 右側：顯示態 -->
-    <div v-if="!editing" class="param-ctrl">
+    <!-- 右側：開關型 -->
+    <div v-if="type === 'toggle'" class="param-ctrl">
+      <span class="toggle-badge" :class="value ? 'on' : 'off'">{{ value ? '開' : '關' }}</span>
+      <button class="edit-btn" @click="requestToggle">切換</button>
+    </div>
+
+    <!-- 右側：數值型顯示態 -->
+    <div v-else-if="!editing" class="param-ctrl">
       <span class="param-value">{{ value.toLocaleString() }}</span>
       <span class="param-unit">{{ unit }}</span>
       <button class="edit-btn" @click="startEdit">修改</button>
     </div>
 
-    <!-- 右側：編輯態 -->
+    <!-- 右側：數值型編輯態 -->
     <div v-else class="param-ctrl editing">
       <input
         ref="inputRef"
@@ -46,11 +53,12 @@
 import { ref, nextTick } from 'vue'
 
 const props = defineProps({
-  paramKey:    { type: String, required: true },
-  label:       { type: String, required: true },
-  description: { type: String, default: '' },
-  value:       { type: Number, required: true },
-  unit:        { type: String, default: '' },
+  paramKey:    { type: String,  required: true },
+  label:       { type: String,  required: true },
+  description: { type: String,  default: '' },
+  value:       { type: Number,  required: true },
+  unit:        { type: String,  default: '' },
+  type:        { type: String,  default: 'number' },
 })
 
 const emit = defineEmits(['request-save'])
@@ -58,6 +66,10 @@ const emit = defineEmits(['request-save'])
 const editing   = ref(false)
 const editValue = ref(0)
 const inputRef  = ref(null)
+
+function requestToggle() {
+  emit('request-save', props.paramKey, props.value ? 0 : 1)
+}
 
 async function startEdit() {
   editValue.value = props.value
@@ -109,6 +121,20 @@ function requestSave() {
   gap: 8px;
   flex-shrink: 0;
 }
+
+/* 開關型 */
+.toggle-badge {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 3px 14px;
+  border-radius: 999px;
+  border: 1px solid;
+  min-width: 40px;
+  text-align: center;
+}
+.toggle-badge.on  { color: var(--ok);             border-color: var(--ok);             background: rgba(63,183,126,.1); }
+.toggle-badge.off { color: var(--text-secondary);  border-color: var(--line);           background: none; }
 
 /* 顯示態 */
 .param-value {

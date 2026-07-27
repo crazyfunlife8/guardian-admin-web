@@ -1,27 +1,31 @@
 <template>
-  <header class="topbar">
-    <div class="brand">
-      <b>守護者・營運後台</b>
-      <span class="mode">監控模式</span>
-    </div>
-
-    <div class="sources" title="七源進料健康（hover 看近況、點擊進來源詳情）">
-      <div
-        v-for="src in sources"
-        :key="src.id"
-        class="src"
-        @click="$emit('source-click', src.id)"
-      >
-        <span class="dot" :class="src.status"></span>
-        <small>{{ src.id }} {{ src.label }}</small>
+  <header class="topbar" :class="{ theater: theaterMode }">
+    <template v-if="!theaterMode">
+      <div class="brand">
+        <b>守護者・營運後台</b>
+        <span class="mode">監控模式</span>
       </div>
-    </div>
 
-    <div class="top-right">
-      <span class="clock">{{ clock }}</span>
-      <span class="account">值班：<b>OP-07</b>・營運員</span>
-      <button class="theater-btn">🖵 掛牆</button>
-      <button class="menu-btn" @click="$emit('menu-click')">☰ 作業選單</button>
+      <div class="sources" title="七源進料健康（hover 看近況、點擊進來源詳情）">
+        <div
+          v-for="src in sources"
+          :key="src.id"
+          class="src"
+          @click="$emit('source-click', src.id)"
+        >
+          <span class="dot" :class="src.status"></span>
+          <small>{{ src.id }} {{ src.label }}</small>
+        </div>
+      </div>
+    </template>
+
+    <div class="top-right" :class="{ 'theater-right': theaterMode }">
+      <span class="clock" :class="{ 'clock-theater': theaterMode }">{{ clock }}</span>
+      <span v-if="!theaterMode" class="account">值班：<b>OP-07</b>・營運員</span>
+      <button class="theater-btn" @click="$emit('theater-toggle')">
+        {{ theaterMode ? '✕ 退出掛牆' : '🖵 掛牆' }}
+      </button>
+      <button v-if="!theaterMode" class="menu-btn" @click="$emit('menu-click')">☰ 作業選單</button>
     </div>
   </header>
 </template>
@@ -31,7 +35,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useSourcesStore } from '../../stores/sources'
 import { storeToRefs } from 'pinia'
 
-defineEmits(['source-click', 'menu-click'])
+defineProps({ theaterMode: { type: Boolean, default: false } })
+defineEmits(['source-click', 'menu-click', 'theater-toggle'])
 
 const { sources } = storeToRefs(useSourcesStore())
 
@@ -59,6 +64,11 @@ onUnmounted(() => clearInterval(timer))
   position: relative;
   z-index: 30;
   flex-shrink: 0;
+  transition: height .25s ease;
+}
+.topbar.theater {
+  height: 40px;
+  padding: 0 16px;
 }
 
 .brand {
@@ -98,7 +108,11 @@ onUnmounted(() => clearInterval(timer))
 .dot.danger { background: var(--danger); animation: breath 1.5s ease-in-out infinite; }
 
 .top-right { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
+.theater-right { margin-left: auto; gap: 12px; }
+
 .clock { font-family: var(--mono); font-size: 20px; font-weight: 600; letter-spacing: .05em; }
+.clock-theater { font-size: 26px; }
+
 .account { font-size: 13px; color: var(--text-secondary); }
 .account b { color: var(--text-primary); font-weight: 500; }
 
@@ -115,5 +129,10 @@ onUnmounted(() => clearInterval(timer))
 .menu-btn:hover, .theater-btn:hover {
   background: var(--bg-panel-raised);
   color: var(--text-primary);
+}
+
+@keyframes breath {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .25; }
 }
 </style>

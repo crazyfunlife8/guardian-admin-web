@@ -5,9 +5,7 @@
       <h2>{{ ticket.id }}</h2>
       <span class="type-chip" :class="TYPE_CHIP[ticket.type]">{{ ticket.type }}</span>
       <StatusBadge :label="STATUS_LABELS[ticket.status]" :variant="STATUS_VARIANTS[ticket.status]" />
-      <span v-if="isTerminated" class="terminated-note">
-        {{ ticket.status === 'closed' ? '已結案' : '已退單' }}，不可再操作
-      </span>
+      <span v-if="isTerminated" class="terminated-note">已結案，不可再操作</span>
     </div>
 
     <!-- 流轉條 -->
@@ -52,7 +50,6 @@
     <ActionBar v-if="!isTerminated">
       <template v-if="ticket.status === 'pending'">
         <button class="btn primary" @click="handleAccept">受理</button>
-        <button class="btn danger"  @click="openDialog('reject')">退單</button>
       </template>
       <template v-else-if="ticket.status === 'processing'">
         <button class="btn primary" @click="openDialog('close')">結案</button>
@@ -97,23 +94,16 @@ const { selectedTicket: ticket } = storeToRefs(store)
 
 const replyText = ref('')
 
-const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案', rejected: '已退單' }
-const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok',     rejected: 'danger' }
+const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案' }
+const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok' }
 
 const TYPE_CHIP = {
-  '積分爭議': 'chip-warn',
-  '帳號問題': 'chip-danger',
-  '任務糾紛': 'chip-accent',
-  '系統反饋': 'chip-info',
-  '其他':     '',
+  '一般客服':       'chip-accent',
+  '申訴類・信譽異議': 'chip-warn',
+  '申訴類・除名異議': 'chip-danger',
+  '用戶檢舉':       'chip-info',
 }
 
-const REJECT_REASONS = [
-  { value: '資料不足',   label: '資料不足' },
-  { value: '重複工單',   label: '重複工單' },
-  { value: '非服務範圍', label: '非服務範圍' },
-  { value: 'other',      label: '其他' },
-]
 const CLOSE_REASONS = [
   { value: '問題已解決', label: '問題已解決' },
   { value: '用戶確認',   label: '用戶確認' },
@@ -122,17 +112,11 @@ const CLOSE_REASONS = [
 ]
 
 const isTerminated = computed(() =>
-  ['closed', 'rejected'].includes(ticket.value?.status)
+  ticket.value?.status === 'closed'
 )
 
 const steps = computed(() => {
-  const s = ticket.value?.status ?? 'pending'
-  if (s === 'rejected') {
-    return [
-      { label: '建立', state: 'done', lockAfter: false },
-      { label: '退單', state: 'now',  lockAfter: false },
-    ]
-  }
+  const s      = ticket.value?.status ?? 'pending'
   const isDone = s === 'closed'
   const isProc = s === 'processing' || isDone
   return [
@@ -155,11 +139,6 @@ const timelineEntries = computed(() =>
 const dialog = ref({ open: false, action: '', title: '', body: '', reasons: [] })
 
 const DIALOG_CONFIG = {
-  reject: {
-    title:   '確認退單？',
-    body:    (t) => `工單 ${t.id}（${t.type}）將被退回，請選擇退單依據。`,
-    reasons: REJECT_REASONS,
-  },
   close: {
     title:   '確認結案？',
     body:    (t) => `工單 ${t.id}（${t.type}）將標記結案，請選擇結案依據。`,
@@ -184,10 +163,9 @@ function openDialog(action) {
 }
 
 function onConfirm(reason) {
-  const action = dialog.value.action
-  store.applyAction(ticket.value.id, action, reason)
+  store.applyAction(ticket.value.id, dialog.value.action, reason)
   dialog.value.open = false
-  toast.success(action === 'close' ? '已結案・已留跡' : '已退單・已留跡')
+  toast.success('已結案・已留跡')
 }
 
 function submitReply() {
@@ -300,6 +278,4 @@ function submitReply() {
 .btn:hover { background: var(--bg-panel-raised); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #08111F; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.1); }
-.btn.danger  { color: var(--danger); border-color: var(--danger); }
-.btn.danger:hover { background: rgba(229, 96, 76, .08); }
 </style>

@@ -1,26 +1,23 @@
 import { ref, computed } from 'vue'
 import { defineStore }   from 'pinia'
 
-export const TICKET_TYPES = ['積分爭議', '帳號問題', '任務糾紛', '系統反饋', '其他']
+export const TICKET_TYPES = ['一般客服', '申訴類・信譽異議', '申訴類・除名異議', '用戶檢舉']
 
 export const STATUS_LABELS = {
   pending:    '待處理',
   processing: '處理中',
   closed:     '已結案',
-  rejected:   '已退單',
 }
 export const STATUS_VARIANTS = {
   pending:    'wait',
   processing: 'info',
   closed:     'ok',
-  rejected:   'danger',
 }
 
 export const FILTERS = [
   { label: '待處理', key: 'pending' },
   { label: '處理中', key: 'processing' },
   { label: '已結案', key: 'closed' },
-  { label: '已退單', key: 'rejected' },
   { label: '全部',   key: 'all' },
 ]
 
@@ -28,7 +25,7 @@ export const useTicketsStore = defineStore('tickets', () => {
   const tickets = ref([
     {
       id: 'TK-001',
-      type: '積分爭議',
+      type: '一般客服',
       status: 'pending',
       description: '本月任務完成率達標但積分未正常入帳，已等待超過 48 小時，系統顯示「處理中」但無進一步說明。',
       relatedEventId: null,
@@ -40,7 +37,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     },
     {
       id: 'TK-002',
-      type: '帳號問題',
+      type: '一般客服',
       status: 'processing',
       description: '帳號無法登入，重設密碼後仍顯示「帳號已停用」，但運營人員未收到任何停用通知。',
       relatedEventId: null,
@@ -53,7 +50,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     },
     {
       id: 'TK-003',
-      type: '任務糾紛',
+      type: '申訴類・信譽異議',
       status: 'processing',
       description: '情報員反映驗證任務廣播後無人接單，逾時後系統自動記為「逾時失敗」並扣除信譽分，認為應屬系統異常非個人失誤。',
       relatedEventId: 'EV-003',
@@ -67,7 +64,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     },
     {
       id: 'TK-004',
-      type: '系統反饋',
+      type: '一般客服',
       status: 'closed',
       description: '建議 App 地圖事件圖標改為更易辨識的形狀，目前圓形圖標在深色底圖上不夠清晰。',
       relatedEventId: null,
@@ -81,15 +78,16 @@ export const useTicketsStore = defineStore('tickets', () => {
     },
     {
       id: 'TK-005',
-      type: '積分爭議',
-      status: 'rejected',
+      type: '一般客服',
+      status: 'closed',
       description: '稱積分遭系統誤扣，但核對兌換核銷記錄 RD-0001 顯示扣除合規，資料有誤。',
       relatedEventId: null,
       relatedInformantId: 'GI-0028',
       submittedAt: '2026-07-19 11:20',
       history: [
         { time: '2026-07-19 11:20', text: '工單建立', actor: 'ADM-003' },
-        { time: '2026-07-19 13:45', text: '退單：核對 RD-0001，扣除操作符合規則，無誤扣情形', actor: 'ADM-003' },
+        { time: '2026-07-19 12:00', text: '受理，查核兌換核銷記錄', actor: 'ADM-003' },
+        { time: '2026-07-19 13:45', text: '結案：核對 RD-0001，扣除操作符合規則，無誤扣情形', actor: 'ADM-003' },
       ],
     },
   ])
@@ -134,10 +132,6 @@ export const useTicketsStore = defineStore('tickets', () => {
       case 'accept':
         ticket.status = 'processing'
         ticket.history.push({ time: now, text: '受理，開始調查', actor: 'ADM-001' })
-        break
-      case 'reject':
-        ticket.status = 'rejected'
-        ticket.history.push({ time: now, text: `退單：${reason}`, actor: 'ADM-001' })
         break
       case 'reply':
         ticket.history.push({ time: now, text: `回覆：${reason}`, actor: 'ADM-001' })

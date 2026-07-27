@@ -21,15 +21,14 @@ defineProps({
 })
 defineEmits(['select'])
 
-const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案', rejected: '已退單' }
-const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok',     rejected: 'danger' }
+const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案' }
+const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok' }
 
 const TYPE_CHIP = {
-  '積分爭議': 'type-warn',
-  '帳號問題': 'type-danger',
-  '任務糾紛': 'type-accent',
-  '系統反饋': 'type-info',
-  '其他':     '',
+  '一般客服':       'type-accent',
+  '申訴類・信譽異議': 'type-warn',
+  '申訴類・除名異議': 'type-danger',
+  '用戶檢舉':       'type-info',
 }
 </script>
 

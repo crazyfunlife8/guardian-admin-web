@@ -1,5 +1,5 @@
 <template>
-  <div class="mapfilter">
+  <div class="mapfilter" ref="containerRef">
     <button class="mf-btn" @click="open = !open">⚙ 篩選</button>
     <div v-if="open" class="mf-panel">
       <div class="mf-group">
@@ -35,12 +35,24 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useEventsStore } from '../../stores/events'
 import FilterChip from './FilterChip.vue'
 
 const evStore = useEventsStore()
 const open = ref(false)
+const containerRef = ref(null)
+
+function onDocClick(e) {
+  if (containerRef.value && !containerRef.value.contains(e.target)) {
+    open.value = false
+  }
+}
+watch(open, val => {
+  if (val) document.addEventListener('click', onDocClick)
+  else document.removeEventListener('click', onDocClick)
+})
+onUnmounted(() => document.removeEventListener('click', onDocClick))
 
 const typeOpts   = [
   { label: '路檢', value: 'inspection' },

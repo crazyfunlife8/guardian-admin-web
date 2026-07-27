@@ -54,15 +54,20 @@
       <!-- ② 規則設定（版型 C） -->
       <div v-show="activeTab === 'rules'" class="tab-pane rules-pane">
         <div class="rules-inner">
-          <InfoCard title="反濫用規則門檻">
+          <InfoCard
+            v-for="group in RULE_GROUP_META"
+            :key="group.key"
+            :title="group.label"
+          >
             <ParamRow
-              v-for="rule in ruleList"
+              v-for="rule in store.rulesInGroup(group.key)"
               :key="rule.key"
               :param-key="rule.key"
               :label="rule.label"
               :description="rule.description"
               :value="rule.value"
               :unit="rule.unit"
+              :type="rule.type ?? 'number'"
               @request-save="onRuleRequestSave"
             />
           </InfoCard>
@@ -149,8 +154,8 @@
 <script setup>
 import { ref }         from 'vue'
 import { storeToRefs } from 'pinia'
-import { useAbuseCheckStore } from '../stores/abuseCheck'
-import { useToastStore }      from '../stores/toast'
+import { useAbuseCheckStore, RULE_GROUP_META } from '../stores/abuseCheck'
+import { useToastStore }                       from '../stores/toast'
 import OpsTopBar    from '../components/layout/OpsTopBar.vue'
 import QueuePanel   from '../components/queue/QueuePanel.vue'
 import Op7QueueItem from '../components/op7/Op7QueueItem.vue'
@@ -166,7 +171,7 @@ const toast = useToastStore()
 
 const {
   filteredCases, selectedId, filterStatus, pendingCount,
-  filteredReports, reportFilter, ruleList,
+  filteredReports, reportFilter,
 } = storeToRefs(store)
 
 const activeTab = ref('queue')
@@ -201,23 +206,30 @@ const ruleDialog = ref({ open: false, title: '', body: '' })
 function onRuleRequestSave(key, newValue) {
   const rule = store.ruleMap[key]
   if (!rule) return
-  pendingRuleSave.value = { key, oldValue: rule.value, newValue, label: rule.label, unit: rule.unit }
+  const isToggle = rule.type === 'toggle'
+  pendingRuleSave.value = { key, oldValue: rule.value, newValue, label: rule.label, unit: rule.unit, isToggle }
   ruleDialog.value = {
     open:  true,
-    title: `確認修改「${rule.label}」？`,
-    body:  `目前值：<b style="font-family:var(--mono)">${rule.value.toLocaleString()} ${rule.unit}</b>
-            &nbsp;→&nbsp;
-            新值：<b style="font-family:var(--mono);color:var(--accent)">${newValue.toLocaleString()} ${rule.unit}</b>`,
+    title: isToggle ? `確認切換「${rule.label}」？` : `確認修改「${rule.label}」？`,
+    body:  isToggle
+      ? `將「${rule.label}」從「${rule.value ? '開' : '關'}」切換為「${newValue ? '開' : '關'}」，即刻生效。`
+      : `目前值：<b style="font-family:var(--mono)">${rule.value.toLocaleString()} ${rule.unit}</b>
+         &nbsp;→&nbsp;
+         新值：<b style="font-family:var(--mono);color:var(--accent)">${newValue.toLocaleString()} ${rule.unit}</b>`,
   }
 }
 
 function onRuleConfirm(reason) {
   if (!pendingRuleSave.value) return
-  const { key, newValue, label, unit, oldValue } = pendingRuleSave.value
+  const { key, newValue, label, unit, oldValue, isToggle } = pendingRuleSave.value
   store.updateRule(key, newValue, reason)
   ruleDialog.value.open = false
   pendingRuleSave.value = null
-  toast.success(`已更新「${label}」：${oldValue.toLocaleString()} → ${newValue.toLocaleString()} ${unit}・已留跡`)
+  toast.success(
+    isToggle
+      ? `已切換「${label}」：${oldValue ? '開' : '關'} → ${newValue ? '開' : '關'}・已留跡`
+      : `已更新「${label}」：${oldValue.toLocaleString()} → ${newValue.toLocaleString()} ${unit}・已留跡`
+  )
 }
 
 // ── Tab ③ 報表匯出 ──────────────────────────────────────────────

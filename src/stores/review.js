@@ -2,8 +2,8 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
 const TRANSITIONS = {
-  approve: { from: ['pending'], to: 'approved', text: '審核通過' },
-  reject:  { from: ['pending'], to: 'rejected', text: '審核拒絕' },
+  approve: { from: ['pending'], to: 'approved_pending', text: '資格核准' },
+  reject:  { from: ['pending'], to: 'rejected',         text: '審核拒絕' },
 }
 
 export const useReviewStore = defineStore('review', () => {
@@ -29,21 +29,32 @@ export const useReviewStore = defineStore('review', () => {
     {
       id: 'AP-0003', name: '王建民',
       phoneSuffix: '6601', plateSuffix: 'CC2', zone: '信義／大安',
-      status: 'approved', submittedAt: '昨日 16:10',
+      status: 'approved_pending', submittedAt: '昨日 16:10',
       history: [
         { time: '昨日 16:10', text: '申請提交', actor: '系統' },
         { time: '昨日 16:11', text: '進入審核中', actor: '系統' },
-        { time: '昨日 17:02', text: '審核通過（內部查核）', actor: '後台 admin' },
+        { time: '昨日 17:02', text: '資格核准（內部查核）', actor: '後台 admin' },
       ],
     },
     {
       id: 'AP-0004', name: '黃怡君',
       phoneSuffix: '2298', plateSuffix: 'EF8', zone: '萬華／中正',
-      status: 'approved', submittedAt: '昨日 09:30',
+      status: 'approved_pending', submittedAt: '昨日 09:30',
       history: [
         { time: '昨日 09:30', text: '申請提交', actor: '系統' },
         { time: '昨日 09:31', text: '進入審核中', actor: '系統' },
-        { time: '昨日 10:15', text: '審核通過（多方反饋）', actor: '後台 admin' },
+        { time: '昨日 10:15', text: '資格核准（多方反饋）', actor: '後台 admin' },
+      ],
+    },
+    {
+      id: 'AP-0007', name: '吳宗翰',
+      phoneSuffix: '1134', plateSuffix: 'MN7', zone: '大同／中山',
+      status: 'active', submittedAt: '3天前 10:00',
+      history: [
+        { time: '3天前 10:00', text: '申請提交', actor: '系統' },
+        { time: '3天前 10:01', text: '進入審核中', actor: '系統' },
+        { time: '3天前 11:20', text: '資格核准（內部查核）', actor: '後台 admin' },
+        { time: '3天前 14:55', text: '四項必綁完成・帳號自動開通', actor: '系統' },
       ],
     },
     {

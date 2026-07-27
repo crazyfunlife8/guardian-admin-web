@@ -44,9 +44,10 @@ const store = useReviewStore()
 const { filteredApps, selectedId, filterStatus } = storeToRefs(store)
 
 const FILTERS = [
-  { label: '待審核', key: 'pending' },
-  { label: '已通過', key: 'approved' },
-  { label: '已拒絕', key: 'rejected' },
-  { label: '全部',   key: 'all' },
+  { label: '待審核',     key: 'pending'          },
+  { label: '已核准待綁定', key: 'approved_pending' },
+  { label: '已開通',     key: 'active'            },
+  { label: '已拒絕',     key: 'rejected'          },
+  { label: '全部',       key: 'all'               },
 ]
 </script>

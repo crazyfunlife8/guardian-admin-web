@@ -1,6 +1,6 @@
 <template>
   <div class="op9-root">
-    <OpsTopBar title="帳本管理（OP-9）" />
+    <OpsTopBar title="積分帳本管理（OP-9）" />
 
     <div class="content">
       <!-- 篩選列 -->
@@ -36,7 +36,41 @@
         </select>
 
         <button class="clear-btn" @click="clearFilter" title="清除篩選">清除</button>
+        <button class="credit-btn" @click="showCreditForm = !showCreditForm">＋ 人工入帳</button>
         <button class="export-btn" @click="exportCsv">匯出 CSV</button>
+      </div>
+
+      <!-- 人工入帳表單 -->
+      <div v-if="showCreditForm" class="credit-form">
+        <h4 class="credit-title">人工入帳（O-15 積分調整・必填依據）</h4>
+        <div class="credit-fields">
+          <div class="credit-field">
+            <label class="credit-label">情報員 ID</label>
+            <input v-model="creditData.informantId" class="filter-input mono" placeholder="GI-XXXX" />
+          </div>
+          <div class="credit-field">
+            <label class="credit-label">積分數額</label>
+            <input v-model.number="creditData.amount" type="number" min="1" class="filter-input mono" placeholder="正整數" style="width:100px" />
+          </div>
+          <div class="credit-field">
+            <label class="credit-label">入帳依據</label>
+            <select v-model="creditData.reason" class="filter-select">
+              <option value="">請選擇依據</option>
+              <option value="申訴翻案補償">申訴翻案補償</option>
+              <option value="任務補算">任務補算</option>
+              <option value="系統誤扣補正">系統誤扣補正</option>
+              <option value="其他人工調整">其他人工調整</option>
+            </select>
+          </div>
+        </div>
+        <div class="credit-actions">
+          <button
+            class="export-btn"
+            :disabled="!creditData.informantId.trim() || !creditData.amount || creditData.amount <= 0 || !creditData.reason"
+            @click="submitCredit"
+          >確認入帳・留跡</button>
+          <button class="clear-btn" @click="cancelCredit">取消</button>
+        </div>
       </div>
 
       <!-- 結果摘要 -->
@@ -99,18 +133,22 @@
       </div>
     </div>
   </div>
+
+  <Toast />
 </template>
 
 <script setup>
-import { onMounted }   from 'vue'
-import { storeToRefs } from 'pinia'
-import { useRoute }    from 'vue-router'
-import { ref }         from 'vue'
+import { onMounted, ref } from 'vue'
+import { storeToRefs }    from 'pinia'
+import { useRoute }       from 'vue-router'
 import { useLedgerStore, TX_TYPE_LABELS } from '../stores/ledger'
+import { useToastStore } from '../stores/toast'
 import OpsTopBar from '../components/layout/OpsTopBar.vue'
+import Toast     from '../components/shared/Toast.vue'
 
 const route = useRoute()
 const store = useLedgerStore()
+const toast = useToastStore()
 const { filteredTx, filterState } = storeToRefs(store)
 
 const expandedId = ref(null)
@@ -147,6 +185,23 @@ function clearFilter() {
   store.setFilter('dateTo', '')
   store.setFilter('type', 'all')
   expandedId.value = null
+}
+
+// 人工入帳
+const showCreditForm = ref(false)
+const creditData = ref({ informantId: '', amount: null, reason: '' })
+
+function submitCredit() {
+  const { informantId, amount, reason } = creditData.value
+  if (!informantId.trim() || !amount || amount <= 0 || !reason) return
+  store.credit(informantId.trim(), amount, reason)
+  toast.success(`已為 ${informantId.trim()} 人工入帳 ${amount} 積分・已留跡`)
+  cancelCredit()
+}
+
+function cancelCredit() {
+  showCreditForm.value = false
+  creditData.value = { informantId: '', amount: null, reason: '' }
 }
 
 function exportCsv() {
@@ -243,6 +298,20 @@ function exportCsv() {
 }
 .clear-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
 
+.credit-btn {
+  border: 1px solid var(--ok);
+  border-radius: 6px;
+  background: none;
+  color: var(--ok);
+  font-size: 13px;
+  font-family: var(--sans);
+  padding: 0 14px;
+  height: 32px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.credit-btn:hover { background: rgba(63,183,126,.1); }
+
 .export-btn {
   margin-left: auto;
   border: 1px solid var(--accent);
@@ -257,6 +326,46 @@ function exportCsv() {
   transition: background .12s;
 }
 .export-btn:hover { background: rgba(76,154,255,.1); }
+.export-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 人工入帳表單 */
+.credit-form {
+  background: var(--bg-panel);
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: grid;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.credit-title {
+  font-size: 13px;
+  color: var(--ok);
+  font-weight: 500;
+  margin: 0;
+}
+.credit-fields {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.credit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.credit-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.credit-actions {
+  display: flex;
+  gap: 8px;
+}
+.credit-actions .export-btn { margin-left: 0; }
 
 /* ── 結果摘要 ── */
 .result-summary {
@@ -286,7 +395,7 @@ function exportCsv() {
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.num-col { text-align: right; padding-right: 0; }
+.num-col { padding-right: 0; }
 
 .data-row {
   cursor: pointer;

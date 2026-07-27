@@ -135,74 +135,6 @@
             </div>
           </InfoCard>
 
-          <!-- 角色設定 -->
-          <InfoCard title="角色設定">
-            <div class="role-list">
-              <div v-for="role in roles" :key="role.key" class="role-row-wrap">
-                <!-- 角色列 -->
-                <div class="role-row" :class="{ 'row-active': roleEditingKey === role.key }">
-                  <span class="role-name-text">{{ role.label }}</span>
-                  <span
-                    class="access-badge"
-                    :class="role.accessLevel === 'restricted' ? 'badge-restrict' : 'badge-normal'"
-                  >
-                    {{ role.accessLevel === 'restricted' ? '高權限' : '一般' }}
-                  </span>
-                  <span class="page-count-hint">可存取 {{ role.pages.length }} 頁</span>
-                  <button
-                    v-if="roleEditingKey !== role.key"
-                    class="row-edit-btn"
-                    @click="startRoleEdit(role)"
-                  >設定</button>
-                  <button
-                    v-else
-                    class="row-cancel-btn"
-                    @click="roleEditingKey = null"
-                  >收合</button>
-                </div>
-
-                <!-- 內聯角色設定 -->
-                <div v-if="roleEditingKey === role.key" class="inline-form role-edit-form">
-                  <div class="form-row">
-                    <label class="form-label">個資存取層級</label>
-                    <div class="radio-group">
-                      <label class="radio-opt">
-                        <input v-model="roleDraft.accessLevel" type="radio" value="normal" />
-                        一般
-                      </label>
-                      <label class="radio-opt">
-                        <input v-model="roleDraft.accessLevel" type="radio" value="restricted" />
-                        高權限
-                      </label>
-                    </div>
-                  </div>
-                  <div class="form-row pages-form-row">
-                    <label class="form-label">可存取頁面</label>
-                    <div class="page-checks">
-                      <label
-                        v-for="pg in ALL_PAGES"
-                        :key="pg.key"
-                        class="page-check-opt"
-                      >
-                        <input
-                          type="checkbox"
-                          :value="pg.key"
-                          :checked="roleDraft.pages.includes(pg.key)"
-                          @change="togglePage(pg.key)"
-                        />
-                        {{ pg.label }}
-                      </label>
-                    </div>
-                  </div>
-                  <div class="form-actions">
-                    <button class="save-btn" @click="requestRoleUpdate(role.key)">儲存</button>
-                    <button class="cancel-btn" @click="roleEditingKey = null">取消</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </InfoCard>
-
         </div>
       </div>
 
@@ -308,7 +240,7 @@ import { ref }           from 'vue'
 import { storeToRefs }   from 'pinia'
 import {
   useAccountsStore,
-  ROLE_LABELS, ALL_PAGES, ACTION_TYPES, ACTION_CHIP_CLASS,
+  ROLE_LABELS, ACTION_TYPES, ACTION_CHIP_CLASS,
 } from '../stores/accounts'
 import { useToastStore } from '../stores/toast'
 import OpsTopBar         from '../components/layout/OpsTopBar.vue'
@@ -317,7 +249,7 @@ import ConfirmDialog     from '../components/shared/ConfirmDialog.vue'
 
 const store = useAccountsStore()
 const toast = useToastStore()
-const { adminAccounts, roles, filterState, filteredLog } = storeToRefs(store)
+const { adminAccounts, filterState, filteredLog } = storeToRefs(store)
 
 const activeTab = ref('perms')
 
@@ -343,21 +275,6 @@ function startAddNew() {
   showPw.value        = false
 }
 
-/* ── 角色設定 ── */
-const roleEditingKey = ref(null)
-const roleDraft      = ref({ accessLevel: 'normal', pages: [] })
-
-function startRoleEdit(role) {
-  roleEditingKey.value = role.key
-  roleDraft.value      = { accessLevel: role.accessLevel, pages: [...role.pages] }
-}
-
-function togglePage(key) {
-  const idx = roleDraft.value.pages.indexOf(key)
-  if (idx === -1) roleDraft.value.pages.push(key)
-  else roleDraft.value.pages.splice(idx, 1)
-}
-
 /* ── ConfirmDialog ── */
 const pendingOp = ref(null)
 const dialog    = ref({ open: false, title: '', body: '', reasons: [], extra: '' })
@@ -368,14 +285,6 @@ const ACC_REASONS = [
   { value: '安全考量', label: '安全考量' },
   { value: 'other',   label: '其他' },
 ]
-const ROLE_REASONS = [
-  { value: '職責調整', label: '職責調整' },
-  { value: '安全政策', label: '安全政策' },
-  { value: '主管授權', label: '主管授權' },
-  { value: 'other',   label: '其他' },
-]
-const ROLE_WARN = '⚠ 角色設定變更將影響所有使用該角色的帳號存取權限，請確認已獲主管授權。'
-
 function openDialog(op, opts) {
   pendingOp.value = op
   dialog.value    = { open: true, ...opts }
@@ -398,15 +307,6 @@ function requestAccAdd() {
   )
 }
 
-function requestRoleUpdate(key) {
-  if (roleDraft.value.pages.length === 0) { toast.info('至少需選取一個可存取頁面'); return }
-  const roleLabel = roles.value.find(r => r.key === key)?.label ?? key
-  openDialog(
-    { type: 'role-update', key, data: { ...roleDraft.value, pages: [...roleDraft.value.pages] } },
-    { title: '確認修改角色設定', body: `修改「${roleLabel}」的頁面存取權限與個資層級`, reasons: ROLE_REASONS, extra: ROLE_WARN },
-  )
-}
-
 function onConfirm(reason) {
   if (!pendingOp.value) return
   const op = pendingOp.value
@@ -421,13 +321,6 @@ function onConfirm(reason) {
       toast.success(`已新增帳號「${op.data.displayName}」・已留跡`)
       addingNew.value = false
       break
-    case 'role-update': {
-      const roleLabel = roles.value.find(r => r.key === op.key)?.label ?? op.key
-      store.updateRole(op.key, { ...op.data, reason })
-      toast.success(`已更新角色「${roleLabel}」設定・已留跡`)
-      roleEditingKey.value = null
-      break
-    }
   }
   dialog.value.open = false
   pendingOp.value   = null
@@ -552,9 +445,8 @@ function exportCsv() {
   border: 1px solid var(--line);
   color: var(--text-secondary);
 }
-.role-chip.role-admin  { color: var(--danger);  border-color: var(--danger); }
-.role-chip.role-ops    { color: var(--accent);  border-color: var(--accent); }
-.role-chip.role-viewer { color: var(--text-secondary); }
+.role-chip.role-admin { color: var(--danger); border-color: var(--danger); }
+.role-chip.role-ops   { color: var(--accent); border-color: var(--accent); }
 
 .status-dot {
   width: 7px; height: 7px;
@@ -572,44 +464,6 @@ function exportCsv() {
   font-size: 12px;
   color: var(--text-secondary);
   margin-left: auto;
-  flex-shrink: 0;
-}
-
-/* ── 角色列表 ── */
-.role-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.role-row-wrap {
-  border-bottom: 1px solid var(--line);
-}
-.role-row-wrap:last-child { border-bottom: none; }
-
-.role-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 0;
-}
-.role-row.row-active { background: rgba(76,154,255,.04); border-radius: 8px; padding: 13px 10px; }
-
-.role-name-text { font-size: 14px; color: var(--text-primary); flex: 1; font-weight: 500; }
-
-.access-badge {
-  font-size: 11px;
-  border-radius: 4px;
-  padding: 2px 7px;
-  border: 1px solid transparent;
-  flex-shrink: 0;
-}
-.badge-restrict { color: var(--danger); border-color: var(--danger); background: rgba(229,96,76,.08); }
-.badge-normal   { color: var(--text-secondary); border-color: var(--line); }
-
-.page-count-hint {
-  font-size: 12px;
-  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -770,42 +624,6 @@ function exportCsv() {
   transition: color .12s, border-color .12s;
 }
 .add-acc-btn:hover { color: var(--accent); border-color: var(--accent); }
-
-/* 角色設定表單 */
-.role-edit-form { gap: 16px; }
-
-.radio-group {
-  display: flex;
-  gap: 16px;
-  padding-top: 6px;
-}
-.radio-opt {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.radio-opt input { accent-color: var(--accent); }
-
-.pages-form-row { align-items: flex-start; }
-
-.page-checks {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px 12px;
-}
-.page-check-opt {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-.page-check-opt input { accent-color: var(--accent); }
 
 /* ── 操作日誌版型 D ── */
 .logs-pane { padding: 0; }

@@ -15,7 +15,7 @@
         <h4>{{ title }}</h4>
         <p v-html="body"></p>
 
-        <div class="reason-group">
+        <div v-if="props.reasons.length" class="reason-group">
           <label class="reason-label">操作依據 <span class="req">*</span></label>
           <div class="reason-options">
             <label v-for="opt in props.reasons" :key="opt.value" class="r-opt">
@@ -72,7 +72,8 @@ const emit = defineEmits(['confirm', 'cancel'])
 const reason    = ref('')
 const otherText = ref('')
 const canSubmit = computed(() =>
-  reason.value && (reason.value !== 'other' || otherText.value.trim())
+  props.reasons.length === 0 ||
+  (reason.value && (reason.value !== 'other' || otherText.value.trim()))
 )
 
 watch(() => props.open, (val) => {
@@ -81,7 +82,10 @@ watch(() => props.open, (val) => {
 
 function submit() {
   if (!canSubmit.value) return
-  emit('confirm', reason.value === 'other' ? otherText.value.trim() : reason.value)
+  const result = props.reasons.length === 0
+    ? ''
+    : reason.value === 'other' ? otherText.value.trim() : reason.value
+  emit('confirm', result)
   reason.value    = ''
   otherText.value = ''
 }

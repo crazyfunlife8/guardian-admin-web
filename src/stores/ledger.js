@@ -64,5 +64,25 @@ export const useLedgerStore = defineStore('ledger', () => {
     filterState.value.informantId = id
   }
 
-  return { txList, filterState, filteredTx, setFilter, presetInformant }
+  let _seq = 17
+
+  function credit(informantId, amount, reason) {
+    const ts  = new Date().toLocaleString('sv-SE').replace('T', ' ')
+    const last = [...txList.value]
+      .filter(t => t.informantId === informantId)
+      .sort((a, b) => b.id.localeCompare(a.id))[0]
+    const prevBalance = last ? last.balance : 0
+    txList.value.unshift({
+      id:          `TX-${String(_seq++).padStart(4, '0')}`,
+      informantId,
+      type:        'adjust',
+      amount,
+      balance:     prevBalance + amount,
+      date:        ts.slice(0, 10),
+      time:        ts.slice(11, 16),
+      note:        `人工入帳（${reason}）`,
+    })
+  }
+
+  return { txList, filterState, filteredTx, setFilter, presetInformant, credit }
 })

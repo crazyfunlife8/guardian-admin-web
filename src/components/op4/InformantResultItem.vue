@@ -16,8 +16,8 @@ defineProps({
 })
 defineEmits(['select'])
 
-const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中' }
-const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait' }
+const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中', removed: '除名待結清', cleared: '已結清' }
+const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait',  removed: 'danger',    cleared: 'danger'  }
 </script>
 
 <style scoped>

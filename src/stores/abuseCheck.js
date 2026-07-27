@@ -6,30 +6,72 @@ const TRANSITIONS = {
   clear:   { from: ['pending'], to: 'cleared',   text: '誤判解除，撤銷警示' },
 }
 
+// 規則分組元資料
+export const RULE_GROUP_META = [
+  { key: 'exclusion', label: '關聯排除規則' },
+  { key: 'fake',      label: '單人作假偵測規則' },
+  { key: 'freq',      label: '單裝置回報頻率上限' },
+]
+
 const RULE_DEFS = [
+  // ── 關聯排除規則（toggle 型）────────────────────────────
   {
-    key: 'high_freq_count',
-    label: '高頻回報閾值（次數）',
-    description: '同一裝置在時間窗口內達此回報次數，觸發高頻回報警示',
-    value: 5, unit: '次',
+    key: 'excl_same_bank', group: 'exclusion', type: 'toggle',
+    label: '同收款帳戶排除',
+    description: '同一收款帳戶綁定的情報員觸發任務時，廣播過濾排除彼此，防止聯合作假',
+    value: 1, unit: '',
   },
   {
-    key: 'high_freq_minutes',
-    label: '高頻回報閾值（時間窗口）',
-    description: '計算高頻回報次數的時間窗口長度',
-    value: 30, unit: '分鐘',
+    key: 'excl_same_device', group: 'exclusion', type: 'toggle',
+    label: '同裝置排除',
+    description: '同一裝置識別碼曾登入多帳號時，廣播過濾排除共用裝置帳號',
+    value: 1, unit: '',
   },
   {
-    key: 'location_jump_km',
+    key: 'excl_high_cooccur', group: 'exclusion', type: 'toggle',
+    label: '高頻共同出沒排除',
+    description: '情報員間共同出沒次數超過統計閾值時，廣播過濾視為潛在關聯方',
+    value: 0, unit: '',
+  },
+
+  // ── 單人作假偵測規則 ─────────────────────────────────────
+  {
+    key: 'fake_sim_location', group: 'fake', type: 'toggle',
+    label: '模擬定位偵測',
+    description: '裝置 GPS 軌跡特徵符合模擬器行為時自動標記，進入人工覆核佇列',
+    value: 1, unit: '',
+  },
+  {
+    key: 'location_jump_km', group: 'fake',
     label: '位置跳躍閾值',
     description: '相鄰兩筆回報的直線距離超過此值，觸發位置跳躍標記',
     value: 10, unit: '公里',
   },
   {
-    key: 'fake_ratio_pct',
+    key: 'fake_dwell_minutes', group: 'fake',
+    label: '停留時間窗閾值',
+    description: '回報位置停留時間低於此值視為異常（無正常停留即回報），觸發軌跡合理性警示',
+    value: 2, unit: '分鐘',
+  },
+  {
+    key: 'fake_ratio_pct', group: 'fake',
     label: '單人作假佐證比率',
     description: '情報員回報與用戶反饋不符的比率超過此值，進入人工覆核佇列',
     value: 40, unit: '%',
+  },
+
+  // ── 單裝置回報頻率上限 ───────────────────────────────────
+  {
+    key: 'high_freq_count', group: 'freq',
+    label: '高頻回報閾值（次數）',
+    description: '同一裝置在時間窗口內達此回報次數，觸發高頻回報警示',
+    value: 5, unit: '次',
+  },
+  {
+    key: 'high_freq_minutes', group: 'freq',
+    label: '高頻回報閾值（時間窗口）',
+    description: '計算高頻回報次數的時間窗口長度',
+    value: 30, unit: '分鐘',
   },
 ]
 
@@ -168,6 +210,10 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
     Object.fromEntries(ruleList.value.map(r => [r.key, r]))
   )
 
+  function rulesInGroup(groupKey) {
+    return ruleList.value.filter(r => r.group === groupKey)
+  }
+
   const filteredReports = computed(() => {
     let list = caseList.value
     const { ruleType, informantId } = reportFilter.value
@@ -207,6 +253,6 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
   return {
     caseList, ruleList, filterStatus, selectedId, reportFilter,
     filteredCases, selectedCase, pendingCount, ruleMap, filteredReports,
-    setFilter, select, applyCaseAction, updateRule,
+    setFilter, select, applyCaseAction, updateRule, rulesInGroup,
   }
 })

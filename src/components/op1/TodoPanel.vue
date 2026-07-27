@@ -1,5 +1,5 @@
 <template>
-  <aside class="todo" :class="{ collapsed }">
+  <aside class="todo" :class="{ collapsed, theater: theaterMode }">
     <div class="panel-head">
       <h2>待辦</h2>
       <button class="collapse" @click="collapsed = !collapsed">
@@ -26,6 +26,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+defineProps({ theaterMode: { type: Boolean, default: false } })
 defineEmits(['item-click'])
 const router = useRouter()
 
@@ -107,4 +108,10 @@ li:hover .arrow { opacity: 1; }
 .badge.warn   { background: var(--warn);   color: #1A1405; }
 .badge.danger { background: var(--danger); color: #fff; }
 .badge.zero   { background: none; border: 1px solid var(--line); color: var(--text-secondary); font-weight: 400; }
+
+.todo.theater { width: 320px; }
+.todo.theater .panel-head h2 { font-size: 22px; }
+.todo.theater li { padding: 14px 20px; }
+.todo.theater .name { font-size: 16px; }
+.todo.theater .badge { font-size: 22px; min-width: 42px; padding: 4px 12px; }
 </style>

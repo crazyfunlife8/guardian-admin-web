@@ -104,10 +104,10 @@ const toast = useToastStore()
 const { filteredTickets, selectedId, filterStatus } = storeToRefs(store)
 
 const showModal = ref(false)
-const draft     = ref({ type: '積分爭議', description: '', relatedEventId: '', relatedInformantId: '' })
+const draft     = ref({ type: '一般客服', description: '', relatedEventId: '', relatedInformantId: '' })
 
 function openNewTicketModal() {
-  draft.value = { type: '積分爭議', description: '', relatedEventId: '', relatedInformantId: '' }
+  draft.value = { type: '一般客服', description: '', relatedEventId: '', relatedInformantId: '' }
   showModal.value = true
 }
 

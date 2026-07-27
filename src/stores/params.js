@@ -1,44 +1,44 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
-// 參數定義：key / 分組 / 標籤 / 說明 / 預設值 / 單位
+// 參數定義：key / 分組 / 標籤 / 說明 / 預設值 / 單位 / type（'number'|'toggle'）
 const PARAM_DEFS = [
   // ── 事件生命週期 ──────────────────────────────────────
   {
     key: 'inspection_ttl', group: 'lifecycle',
     label: '臨時路檢預設 TTL',
-    description: '臨時路檢事件建立後預設存活時間，到期仍無確認則自動下架',
+    description: '臨時路檢事件建立後預設存活時間，到期仍無確認則進入寬限窗',
     value: 30, unit: '分',
   },
   {
     key: 'accident_ttl', group: 'lifecycle',
     label: '事故預設 TTL',
-    description: '事故事件建立後預設存活時間，到期仍無確認則自動下架',
+    description: '事故事件建立後預設存活時間',
     value: 60, unit: '分',
   },
   {
     key: 'construction_ttl', group: 'lifecycle',
     label: '施工預設 TTL',
-    description: '施工事件建立後預設存活時間，到期仍無確認則自動下架',
+    description: '施工事件建立後預設存活時間',
     value: 120, unit: '分',
   },
   {
     key: 'control_ttl', group: 'lifecycle',
     label: '管制預設 TTL',
-    description: '管制事件建立後預設存活時間，到期仍無確認則自動下架',
+    description: '管制事件建立後預設存活時間',
     value: 90, unit: '分',
   },
   {
-    key: 'max_extend_count', group: 'lifecycle',
-    label: '最大延長次數',
-    description: '操作員對同一事件手動延長 TTL 的次數上限，達上限後不可再延長',
-    value: 3, unit: '次',
+    key: 'termination_grace', group: 'lifecycle',
+    label: '事件終止寬限窗',
+    description: 'TTL 歸零後等待此時間，若仍無人工確認則系統自動下架',
+    value: 5, unit: '分',
   },
   {
-    key: 'auto_takedown_wait', group: 'lifecycle',
-    label: '自動下架等待時間',
-    description: 'TTL 歸零後等待此時間若仍無人工確認，系統自動執行下架',
-    value: 5, unit: '分',
+    key: 'alert_threshold', group: 'lifecycle',
+    label: '警示狀態門檻',
+    description: '單一區域內未確認事件累積達此數量時觸發警示播報',
+    value: 3, unit: '件',
   },
 
   // ── 驗證任務 ──────────────────────────────────────────
@@ -68,87 +68,121 @@ const PARAM_DEFS = [
   },
   {
     key: 'lock_duration', group: 'task',
-    label: '情報員鎖定時間',
+    label: '鎖單時長',
     description: '情報員接單後的鎖定期，期間系統不再向其廣播其他同區域任務',
     value: 15, unit: '分',
   },
-
-  // ── 積分系統 ──────────────────────────────────────────
   {
-    key: 'exchange_rate', group: 'points',
-    label: '積分兌現比率',
-    description: '此數量積分可兌換 1 元現金（例：100 表示 100 積分 ＝ 1 元）',
-    value: 100, unit: '積分／元',
+    key: 'audit_ratio', group: 'task',
+    label: '抽查比例',
+    description: '完成任務中隨機抽取進行品質抽查的比例',
+    value: 5, unit: '%',
   },
   {
-    key: 'single_limit', group: 'points',
-    label: '單筆兌換上限',
-    description: '單次兌換申請金額不得超過此上限，超過須拆單申請',
-    value: 20000, unit: '元',
+    key: 'cancel_compensation', group: 'task',
+    label: '任務取消補償',
+    description: '情報員接單後因系統原因取消所給予的補償積分（預設 0）',
+    value: 0, unit: '積分',
   },
   {
-    key: 'monthly_limit', group: 'points',
-    label: '月兌換上限',
-    description: '每位情報員每自然月可兌換的總金額上限',
-    value: 50000, unit: '元',
+    key: 'dispatch_ttl_threshold', group: 'task',
+    label: '派單前 TTL 門檻',
+    description: '事件剩餘 TTL 低於此值時，不再廣播新任務，改由待辦提示人工決策',
+    value: 10, unit: '分',
   },
 
-  // ── 通知 ──────────────────────────────────────────────
+  // ── 任務積分費率 ──────────────────────────────────────
   {
-    key: 'broadcast_cooldown', group: 'notify',
-    label: '任務廣播推播冷卻',
-    description: '同一情報員在此冷卻時間內不重複收到相同任務的廣播推播',
-    value: 30, unit: '秒',
+    key: 'rate_inspection', group: 'rates',
+    label: '臨時路檢任務費率',
+    description: '情報員完成臨時路檢驗證任務所獲得的積分',
+    value: 50, unit: '積分',
   },
   {
-    key: 'alert_repeat_interval', group: 'notify',
-    label: '警示推播重複間隔',
-    description: '同一類警示推播在此間隔後才可重複發送，防止通知轟炸',
-    value: 5, unit: '分',
+    key: 'rate_accident', group: 'rates',
+    label: '事故任務費率',
+    description: '情報員完成事故驗證任務所獲得的積分',
+    value: 80, unit: '積分',
+  },
+  {
+    key: 'rate_construction', group: 'rates',
+    label: '施工任務費率',
+    description: '情報員完成施工驗證任務所獲得的積分',
+    value: 60, unit: '積分',
+  },
+  {
+    key: 'rate_control', group: 'rates',
+    label: '管制任務費率',
+    description: '情報員完成管制驗證任務所獲得的積分',
+    value: 70, unit: '積分',
+  },
+
+  // ── 開關設定（預設全關）────────────────────────────────
+  {
+    key: 'personal_cap_enabled', group: 'switches', type: 'toggle',
+    label: '單人日／週積分上限',
+    description: '開啟後對每位情報員的單日及單週積分累積設定上限（開啟條件見 PRD B3）',
+    value: 0, unit: '',
+  },
+  {
+    key: 'passive_hint_enabled', group: 'switches', type: 'toggle',
+    label: '被動感測「疑似提示」開關',
+    description: '開啟後被動感測命中時對用戶顯示「疑似提示」，開啟前提為誤判率實測達標',
+    value: 0, unit: '',
+  },
+  {
+    key: 'escalation_bonus_enabled', group: 'switches', type: 'toggle',
+    label: '逾時加價階梯',
+    description: '備用旋鈕——開啟後任務逾時未接單時自動提高費率吸引接單（預設關閉）',
+    value: 0, unit: '',
   },
 ]
 
 export const GROUP_META = [
   { key: 'lifecycle', label: '事件生命週期' },
   { key: 'task',      label: '驗證任務' },
-  { key: 'points',    label: '積分系統' },
-  { key: 'notify',    label: '通知' },
+  { key: 'rates',     label: '任務積分費率' },
+  { key: 'switches',  label: '開關設定' },
 ]
 
+// 分區任務開關
+export const REGION_MODE_LABELS = {
+  normal:        '正常',
+  display_only:  '只顯示不派單',
+  paused:        '暫停新任務',
+  internal_only: '只允許內部派遣',
+}
+
+const REGION_NAMES = ['北投／士林', '內湖／南港', '萬華／中正', '信義／大安', '松山／中山', '文山／景美']
+
 export const useParamsStore = defineStore('params', () => {
-  // 以 ref 包裝，使每個 param 物件可被 Vue 追蹤
   const paramList = ref(PARAM_DEFS.map(p => ({ ...p, history: [] })))
 
-  // O(1) 查詢：key → param 物件
   const paramMap = computed(() =>
     Object.fromEntries(paramList.value.map(p => [p.key, p]))
   )
 
-  // 依分組取得參數列表
   function paramsInGroup(groupKey) {
     return paramList.value.filter(p => p.group === groupKey)
   }
 
-  /**
-   * 修改單一參數值
-   * @param {string} key   - 參數 key
-   * @param {number} value - 新數值
-   * @param {string} reason - 操作依據（來自 ConfirmDialog）
-   */
   function updateParam(key, value, reason) {
     const param = paramList.value.find(p => p.key === key)
     if (!param) return
     const oldValue = param.value
     param.value = Number(value)
     const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-    param.history.push({
-      time:   now,
-      from:   oldValue,
-      to:     Number(value),
-      reason,
-      actor:  '後台人員',
-    })
+    param.history.push({ time: now, from: oldValue, to: Number(value), reason, actor: '後台人員' })
   }
 
-  return { paramList, paramMap, paramsInGroup, updateParam }
+  // 分區任務開關
+  const regionModes = ref(REGION_NAMES.map(region => ({ region, mode: 'normal' })))
+
+  function updateRegionMode(region, newMode, reason) {
+    const r = regionModes.value.find(r => r.region === region)
+    if (!r || r.mode === newMode) return
+    r.mode = newMode
+  }
+
+  return { paramList, paramMap, paramsInGroup, updateParam, regionModes, updateRegionMode }
 })

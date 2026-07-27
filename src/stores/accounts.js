@@ -2,26 +2,9 @@ import { ref, computed } from 'vue'
 import { defineStore }   from 'pinia'
 
 export const ROLE_LABELS = {
-  admin:  '系統管理員',
-  ops:    '操作員',
-  viewer: '檢視者',
+  admin: '管理員',
+  ops:   '營運員',
 }
-
-export const ALL_PAGES = [
-  { key: 'op1',  label: 'OP-1  監控主頁' },
-  { key: 'op2',  label: 'OP-2  事件詳情' },
-  { key: 'op3',  label: 'OP-3  資格審核' },
-  { key: 'op4',  label: 'OP-4  情報員檔案' },
-  { key: 'op5',  label: 'OP-5  申訴與爭議' },
-  { key: 'op6',  label: 'OP-6  系統參數' },
-  { key: 'op7',  label: 'OP-7  反濫用儀表' },
-  { key: 'op8',  label: 'OP-8  兌換核銷' },
-  { key: 'op9',  label: 'OP-9  帳本管理' },
-  { key: 'op10', label: 'OP-10 靜態資料管理' },
-  { key: 'op11', label: 'OP-11 報表中心' },
-  { key: 'op12', label: 'OP-12 帳號權限與操作日誌' },
-  { key: 'op13', label: 'OP-13 客服工單' },
-]
 
 export const ACTION_TYPES = [
   '事件確認', '誤報下架', '申訴裁決', '兌換核銷',
@@ -45,25 +28,9 @@ export const ACTION_CHIP_CLASS = {
 
 export const useAccountsStore = defineStore('accounts', () => {
   const adminAccounts = ref([
-    { id: 'ADM-001', displayName: '系統管理員', role: 'admin',  status: 'active',   createdAt: '2025-01-01' },
-    { id: 'ADM-002', displayName: '北區操作員', role: 'ops',    status: 'active',   createdAt: '2025-03-15' },
-    { id: 'ADM-003', displayName: '值班員甲',   role: 'ops',    status: 'active',   createdAt: '2025-06-01' },
-    { id: 'ADM-004', displayName: '查閱帳號',   role: 'viewer', status: 'inactive', createdAt: '2025-08-10' },
-  ])
-
-  const roles = ref([
-    {
-      key: 'admin', label: '系統管理員', accessLevel: 'restricted',
-      pages: ['op1','op2','op3','op4','op5','op6','op7','op8','op9','op10','op11','op12','op13'],
-    },
-    {
-      key: 'ops', label: '操作員', accessLevel: 'normal',
-      pages: ['op1','op2','op3','op4','op5','op7','op8','op9','op11'],
-    },
-    {
-      key: 'viewer', label: '檢視者', accessLevel: 'normal',
-      pages: ['op1','op11'],
-    },
+    { id: 'ADM-001', displayName: '管理員甲', role: 'admin', status: 'active', createdAt: '2025-01-01' },
+    { id: 'ADM-002', displayName: '北區營運員', role: 'ops',   status: 'active', createdAt: '2025-03-15' },
+    { id: 'ADM-003', displayName: '值班員甲',   role: 'ops',   status: 'active', createdAt: '2025-06-01' },
   ])
 
   const auditLog = ref([
@@ -119,14 +86,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     _pushLog(actionType, id, reason ?? '人事異動')
   }
 
-  function updateRole(key, patch) {
-    const role = roles.value.find(r => r.key === key)
-    if (!role) return
-    const { reason, ...rest } = patch
-    Object.assign(role, rest)
-    _pushLog('帳號管理', `role:${key}`, reason ?? '主管授權')
-  }
-
   function _pushLog(actionType, target, reason) {
     const id = `LOG-${String(_logSeq++).padStart(3, '0')}`
     const time = new Date().toLocaleString('sv-SE').replace('T', ' ')
@@ -134,8 +93,8 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   return {
-    adminAccounts, roles, auditLog,
+    adminAccounts, auditLog,
     filterState, filteredLog,
-    setFilter, addAccount, updateAccount, updateRole,
+    setFilter, addAccount, updateAccount,
   }
 })

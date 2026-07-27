@@ -21,14 +21,16 @@ defineProps({
 defineEmits(['select'])
 
 const STATUS_LABELS = {
-  pending:  '待審核',
-  approved: '已通過',
-  rejected: '已拒絕',
+  pending:          '待審核',
+  approved_pending: '已核准待綁定',
+  active:           '已開通',
+  rejected:         '已拒絕',
 }
 const STATUS_VARIANTS = {
-  pending:  'wait',
-  approved: 'ok',
-  rejected: 'danger',
+  pending:          'wait',
+  approved_pending: 'info',
+  active:           'ok',
+  rejected:         'danger',
 }
 </script>
 

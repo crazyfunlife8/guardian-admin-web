@@ -15,6 +15,18 @@
       <RouterLink to="/op4" class="back-search">← 返回搜尋</RouterLink>
     </div>
 
+    <!-- 管理動作 -->
+    <ActionBar v-if="canManage">
+      <template v-if="inf.status === 'active'">
+        <button class="btn warn" @click="openActionDialog('suspend')">停權</button>
+        <button class="btn danger" @click="openActionDialog('remove')">除名</button>
+      </template>
+      <template v-else-if="inf.status === 'suspended'">
+        <button class="btn primary" @click="openActionDialog('reinstate')">恢復帳號</button>
+        <button class="btn danger" @click="openActionDialog('remove')">除名</button>
+      </template>
+    </ActionBar>
+
     <!-- 基本資料 -->
     <InfoCard title="基本資料">
       <KeyValue label="姓名">
@@ -23,7 +35,12 @@
       <KeyValue label="手機末碼">
         <MaskField ref="phoneRef" :value="`**** ${inf.phoneSuffix}`" masked-text="●●●●" @unmask="onUnmask('phone')" />
       </KeyValue>
-      <KeyValue label="車牌末碼" :value="`*** ${inf.plateSuffix}`" mono />
+      <KeyValue label="身分證字號">
+        <MaskField ref="idRef" :value="`***-***-${inf.idSuffix}`" masked-text="●●●●" @unmask="onUnmask('id')" />
+      </KeyValue>
+      <KeyValue label="收款帳戶">
+        <MaskField ref="bankRef" :value="`****-****-****-${inf.bankAccount}`" masked-text="●●●●" @unmask="onUnmask('bank')" />
+      </KeyValue>
       <KeyValue label="服務區域"  :value="inf.zone" />
       <KeyValue label="加入日期"  :value="inf.joinedAt" mono />
     </InfoCard>
@@ -43,16 +60,49 @@
           </span>
           <small>信譽分數</small>
         </div>
+        <button v-if="canManage && !showRepForm" class="adj-toggle" @click="showRepForm = true">調整分數</button>
       </div>
+
+      <!-- 信譽分調整表單 -->
+      <div v-if="showRepForm" class="rep-form">
+        <div class="rep-row">
+          <label class="rep-label">調整值（正數加分 / 負數扣分）</label>
+          <input
+            v-model.number="repDelta"
+            type="number"
+            min="-99"
+            max="99"
+            class="rep-input mono"
+            placeholder="±"
+          />
+          <span v-if="repDelta" class="rep-preview">
+            → {{ Math.max(0, Math.min(100, (inf.reputation.score ?? 50) + repDelta)) }}
+          </span>
+        </div>
+        <select v-model="repReason" class="rep-reason">
+          <option value="">請選擇依據</option>
+          <option value="申訴翻案">申訴翻案</option>
+          <option value="任務補核">任務補核</option>
+          <option value="誤扣補正">誤扣補正</option>
+          <option value="違規確認">違規確認</option>
+          <option value="其他">其他</option>
+        </select>
+        <div class="rep-actions">
+          <button class="btn primary" :disabled="!repDelta || !repReason" @click="submitRepAdj">確認調整・留跡</button>
+          <button class="btn" @click="cancelRepForm">取消</button>
+        </div>
+      </div>
+
       <KeyValue label="近 30 天正確率" :value="inf.reputation.accuracy30d !== null ? `${inf.reputation.accuracy30d}%` : '資料不足'" mono />
       <KeyValue label="誤報次數"       :value="`${inf.reputation.falseReports} 次`" mono />
     </InfoCard>
 
     <!-- 任務摘要 -->
     <InfoCard title="任務摘要（本月）">
-      <KeyValue label="接單數"     :value="`${inf.taskSummary.monthlyCount} 件`" mono />
-      <KeyValue label="完成率"     :value="inf.taskSummary.completionRate ? `${inf.taskSummary.completionRate}%` : '—'" mono />
-      <KeyValue label="平均回應時間" :value="inf.taskSummary.avgResponseSec ? `${inf.taskSummary.avgResponseSec} 秒` : '—'" mono />
+      <KeyValue label="接單數"   :value="`${inf.taskSummary.monthlyCount} 件`" mono />
+      <KeyValue label="完成率"   :value="inf.taskSummary.completionRate ? `${inf.taskSummary.completionRate}%` : '—'" mono />
+      <KeyValue label="棄單次數" :value="`${inf.taskSummary.abandonCount} 次`" mono />
+      <KeyValue label="抽查結果" :value="inf.taskSummary.auditResult || '無紀錄'" mono />
     </InfoCard>
 
     <!-- 帳本摘要 -->
@@ -80,48 +130,30 @@
       <p v-else class="empty-note">無申訴紀錄</p>
     </InfoCard>
 
-    <!-- 標記 -->
-    <InfoCard title="標記">
-      <div class="tags-section">
-        <div class="tag-row">
-          <span class="tag-label">系統</span>
-          <div class="chip-list">
-            <span v-if="inf.tags.system.length === 0" class="empty-note">無</span>
-            <span v-for="t in inf.tags.system" :key="t" class="chip system">{{ t }}</span>
-          </div>
-        </div>
-        <div class="tag-row">
-          <span class="tag-label">人工</span>
-          <div class="chip-list">
-            <span v-if="inf.tags.manual.length === 0 && !addingTag" class="empty-note">無</span>
-            <span v-for="t in inf.tags.manual" :key="t" class="chip manual">
-              {{ t }}
-              <button class="remove-tag" @click="removeTag(t)">✕</button>
-            </span>
-            <div v-if="addingTag" class="add-inline">
-              <input
-                ref="tagInputRef"
-                v-model="newTag"
-                class="tag-input"
-                placeholder="標記名稱…"
-                @keyup.enter="confirmAddTag"
-                @keyup.escape="addingTag = false"
-                maxlength="10"
-              />
-              <button class="tag-btn ok"     @click="confirmAddTag">確認</button>
-              <button class="tag-btn cancel" @click="addingTag = false">取消</button>
-            </div>
-          </div>
-        </div>
-        <button v-if="!addingTag" class="add-tag-btn" @click="startAddTag">＋ 新增標記</button>
+    <!-- 反濫用標記（系統自動產生，唯讀） -->
+    <InfoCard title="反濫用標記">
+      <div class="chip-list">
+        <span v-if="inf.tags.system.length === 0" class="empty-note">無反濫用標記</span>
+        <span v-for="t in inf.tags.system" :key="t" class="chip system">{{ t }}</span>
       </div>
     </InfoCard>
 
-    <!-- 解除遮罩確認對話框 -->
+    <!-- 管理動作確認對話框 -->
+    <ConfirmDialog
+      :open="actionDialog.open"
+      :title="actionDialog.title"
+      :body="actionDialog.body"
+      :reasons="actionDialog.reasons"
+      @confirm="onActionConfirm"
+      @cancel="actionDialog.open = false"
+    />
+
+    <!-- 解除遮罩確認對話框（純確認，不需選理由） -->
     <ConfirmDialog
       :open="unmaskDialog.open"
       :title="unmaskDialog.title"
       :body="unmaskDialog.body"
+      :reasons="[]"
       @confirm="onUnmaskConfirm"
       @cancel="unmaskDialog.open = false"
     />
@@ -131,13 +163,14 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { useInformantsStore } from '../../stores/informants'
 import { useToastStore }      from '../../stores/toast'
 import StatusBadge    from '../shared/StatusBadge.vue'
 import InfoCard       from '../shared/InfoCard.vue'
 import KeyValue       from '../shared/KeyValue.vue'
 import MaskField      from '../shared/MaskField.vue'
+import ActionBar      from '../shared/ActionBar.vue'
 import StatusTimeline from '../shared/StatusTimeline.vue'
 import ConfirmDialog  from '../shared/ConfirmDialog.vue'
 import Toast          from '../shared/Toast.vue'
@@ -151,8 +184,8 @@ const toast = useToastStore()
 
 const inf = computed(() => store.getById(props.informantId))
 
-const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中' }
-const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait' }
+const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中', removed: '除名待結清', cleared: '已結清' }
+const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait',  removed: 'danger',    cleared: 'danger'  }
 
 // 審核史 → StatusTimeline 格式
 const reviewEntries = computed(() =>
@@ -164,9 +197,86 @@ const reviewEntries = computed(() =>
   }))
 )
 
+// 管理動作
+const canManage = computed(() =>
+  inf.value && !['reviewing', 'removed', 'cleared'].includes(inf.value.status)
+)
+
+const SUSPEND_REASONS = [
+  { value: '違規行為確認', label: '違規行為確認' },
+  { value: '反濫用標記',   label: '反濫用系統標記' },
+  { value: '舉報核實',     label: '多方舉報核實' },
+  { value: 'other',        label: '其他' },
+]
+const REINSTATE_REASONS = [
+  { value: '申訴翻案成立', label: '申訴翻案成立' },
+  { value: '確認為誤判',   label: '確認為誤判' },
+  { value: '問題已解決',   label: '問題已解決' },
+  { value: 'other',        label: '其他' },
+]
+const REMOVE_REASONS = [
+  { value: '嚴重違規', label: '嚴重違規' },
+  { value: '反覆違規', label: '反覆違規' },
+  { value: '欺詐行為', label: '欺詐行為' },
+  { value: 'other',    label: '其他' },
+]
+
+const ACTION_CONFIG = {
+  suspend:   { title: '確認停權？',   reasons: SUSPEND_REASONS },
+  reinstate: { title: '確認恢復帳號？', reasons: REINSTATE_REASONS },
+  remove:    { title: '確認除名？',   reasons: REMOVE_REASONS },
+}
+const ACTION_BODY = {
+  suspend:   (id) => `將 ${id} 帳號停權，停權後無法接任務。可依申訴結果恢復。`,
+  reinstate: (id) => `將 ${id} 帳號恢復正常，恢復後可重新接任務。`,
+  remove:    (id) => `將 ${id} 帳號除名，進入「待結清」狀態。此操作請謹慎確認。`,
+}
+
+const actionDialog  = ref({ open: false, action: '', title: '', body: '', reasons: [] })
+
+function openActionDialog(action) {
+  const cfg = ACTION_CONFIG[action]
+  actionDialog.value = {
+    open:    true,
+    action,
+    title:   cfg.title,
+    body:    ACTION_BODY[action](props.informantId),
+    reasons: cfg.reasons,
+  }
+}
+
+function onActionConfirm(reason) {
+  const { action } = actionDialog.value
+  if (action === 'suspend')   store.suspend(props.informantId, reason)
+  if (action === 'reinstate') store.reinstate(props.informantId, reason)
+  if (action === 'remove')    store.remove(props.informantId, reason)
+  actionDialog.value.open = false
+  toast.success('操作已完成・已留跡')
+}
+
+// 信譽分調整
+const showRepForm = ref(false)
+const repDelta    = ref(0)
+const repReason   = ref('')
+
+function submitRepAdj() {
+  if (!repDelta.value || !repReason.value) return
+  store.adjustReputation(props.informantId, repDelta.value, repReason.value)
+  toast.success(`信譽分已調整 ${repDelta.value > 0 ? '+' : ''}${repDelta.value}・已留跡`)
+  cancelRepForm()
+}
+
+function cancelRepForm() {
+  showRepForm.value = false
+  repDelta.value    = 0
+  repReason.value   = ''
+}
+
 // 遮罩
 const nameRef        = ref(null)
 const phoneRef       = ref(null)
+const idRef          = ref(null)
+const bankRef        = ref(null)
 const pendingUnmask  = ref(null)
 const unmaskDialog   = ref({ open: false, title: '', body: '' })
 
@@ -175,43 +285,20 @@ function onUnmask(field) {
   unmaskDialog.value = {
     open:  true,
     title: '確認解除遮罩？',
-    body:  '此操作將記錄於稽核日誌，請選擇查閱依據。',
+    body:  '此操作將記錄於稽核日誌。',
   }
 }
 
 function onUnmaskConfirm(reason) {
   if (pendingUnmask.value === 'name')  nameRef.value?.reveal()
   if (pendingUnmask.value === 'phone') phoneRef.value?.reveal()
+  if (pendingUnmask.value === 'id')    idRef.value?.reveal()
+  if (pendingUnmask.value === 'bank')  bankRef.value?.reveal()
   pendingUnmask.value  = null
   unmaskDialog.value.open = false
   toast.success('已解除遮罩・已留跡')
 }
 
-// 標記
-const addingTag   = ref(false)
-const newTag      = ref('')
-const tagInputRef = ref(null)
-
-async function startAddTag() {
-  addingTag.value = true
-  newTag.value    = ''
-  await nextTick()
-  tagInputRef.value?.focus()
-}
-
-function confirmAddTag() {
-  const tag = newTag.value.trim()
-  if (!tag) return
-  store.addManualTag(inf.value.id, tag)
-  addingTag.value = false
-  newTag.value    = ''
-  toast.success(`已新增標記「${tag}」`)
-}
-
-function removeTag(tag) {
-  store.removeManualTag(inf.value.id, tag)
-  toast.info(`已移除標記「${tag}」`)
-}
 </script>
 
 <style scoped>
@@ -267,6 +354,26 @@ function removeTag(tag) {
 }
 .back-search:hover { text-decoration: underline; }
 
+/* 管理動作按鈕 */
+.btn {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--text-primary);
+  padding: 11px 22px;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: background .12s;
+}
+.btn:hover   { background: var(--bg-panel-raised); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #08111F; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.warn   { color: var(--warn);   border-color: var(--warn); }
+.btn.warn:hover { background: rgba(229,184,75,.08); }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: rgba(229,96,76,.08); }
+
 /* 大數字 */
 .big-num-row { margin-bottom: 4px; }
 .big-num { display: flex; align-items: baseline; gap: 8px; }
@@ -279,6 +386,52 @@ function removeTag(tag) {
 .num.accent   { color: var(--accent); }
 .num.score-low { color: var(--danger); }
 .big-num small { color: var(--text-secondary); font-size: 13px; }
+
+/* 調整分數 */
+.adj-toggle {
+  margin-left: auto;
+  font-size: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary);
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: color .12s, border-color .12s;
+}
+.adj-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+.rep-form { display: grid; gap: 8px; margin: 10px 0 6px; }
+.rep-row  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rep-label { font-size: 12px; color: var(--text-secondary); }
+.rep-input {
+  width: 80px;
+  background: var(--bg-base);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 5px 8px;
+  text-align: center;
+}
+.rep-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.rep-preview { font-size: 13px; color: var(--accent); font-family: var(--mono); }
+.rep-reason {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 6px 10px;
+}
+.rep-reason:focus { outline: 1px solid var(--accent); }
+.rep-actions { display: flex; gap: 8px; }
+.rep-actions .btn { font-size: 13px; padding: 7px 16px; }
+.rep-actions .btn:disabled { opacity: .4; cursor: not-allowed; }
 
 /* 帳本連結 */
 .ledger-link {
@@ -296,10 +449,7 @@ function removeTag(tag) {
 .date   { color: var(--text-secondary); min-width: 100px; }
 .reason { flex: 1; }
 
-/* 標記 */
-.tags-section { display: grid; gap: 12px; }
-.tag-row { display: flex; align-items: flex-start; gap: 12px; }
-.tag-label { font-size: 13px; color: var(--text-secondary); min-width: 36px; padding-top: 2px; }
+/* 反濫用標記 */
 .chip-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .chip {
   font-size: 12px;
@@ -307,59 +457,8 @@ function removeTag(tag) {
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
 }
 .chip.system { background: rgba(88, 193, 212, .12); color: var(--info); border: 1px solid var(--info); }
-.chip.manual { background: rgba(76, 154, 255, .12); color: var(--accent); border: 1px solid var(--accent); }
-.remove-tag {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 10px;
-  padding: 0;
-  opacity: .7;
-}
-.remove-tag:hover { opacity: 1; }
-
-.add-inline { display: flex; align-items: center; gap: 6px; }
-.tag-input {
-  background: var(--bg-base);
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-family: var(--sans);
-  padding: 4px 10px;
-  width: 130px;
-  outline: none;
-}
-.tag-btn {
-  font-size: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: none;
-  cursor: pointer;
-  padding: 4px 10px;
-  font-family: var(--sans);
-}
-.tag-btn.ok     { color: var(--ok);   border-color: var(--ok); }
-.tag-btn.cancel { color: var(--text-secondary); }
-.tag-btn:hover  { background: var(--bg-panel-raised); }
-
-.add-tag-btn {
-  align-self: start;
-  font-size: 13px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 6px 14px;
-  font-family: var(--sans);
-  transition: color .12s, border-color .12s;
-}
-.add-tag-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 .empty-note { font-size: 13px; color: var(--text-secondary); }
 </style>

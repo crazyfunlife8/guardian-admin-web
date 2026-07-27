@@ -4,7 +4,7 @@
 
     <div class="content">
 
-      <!-- ① 熱點區域 ─────────────────────────────────────── -->
+      <!-- ① 熱點區域 ─────────────────────────────────────────── -->
       <InfoCard title="熱點區域">
         <div class="item-list">
           <div v-for="hs in store.hotspots" :key="hs.id" class="item-row">
@@ -86,66 +86,77 @@
         </div>
       </InfoCard>
 
-      <!-- ② 地圖事件 POI ──────────────────────────────────── -->
-      <InfoCard title="地圖事件 POI">
+      <!-- ② 合作來源主檔（PRD C4）────────────────────────────── -->
+      <InfoCard title="合作來源主檔">
+        <p class="section-desc">D5 人工事件登錄時引用此主檔選來源，授權範圍自動帶入，不逐筆填寫。</p>
         <div class="item-list">
-          <div v-for="poi in store.mapPOIs" :key="poi.id" class="item-row">
+          <div v-for="sm in store.sourceMasters" :key="sm.id" class="item-row">
             <!-- 顯示態 -->
-            <template v-if="poiEditingId !== poi.id">
-              <div class="item-info">
-                <span class="item-id mono">{{ poi.id }}</span>
-                <span class="item-name">{{ poi.label }}</span>
-                <span class="poi-chip" :class="poiChipClass(poi.type)">{{ poi.type }}</span>
-                <span class="item-sub mono">({{ poi.lat }}, {{ poi.lng }})</span>
+            <template v-if="smEditingId !== sm.id">
+              <div class="item-info sm-info">
+                <span class="item-id mono">{{ sm.id }}</span>
+                <span class="item-name">{{ sm.name }}</span>
+                <div class="scope-chips">
+                  <span v-for="sc in sm.scopes" :key="sc" class="scope-chip">
+                    {{ SCOPE_LABELS[sc] }}
+                  </span>
+                </div>
+                <span class="sm-purpose">{{ sm.purpose }}</span>
               </div>
               <div class="item-btns">
-                <button class="row-btn" :disabled="poiAddingNew || poiEditingId !== null" @click="startPoiEdit(poi)">編輯</button>
-                <button class="row-btn danger" :disabled="poiAddingNew || poiEditingId !== null" @click="requestPoiDelete(poi)">刪除</button>
+                <button class="row-btn" :disabled="smAddingNew || smEditingId !== null" @click="startSmEdit(sm)">編輯</button>
+                <button class="row-btn danger" :disabled="smAddingNew || smEditingId !== null" @click="requestSmDelete(sm)">刪除</button>
               </div>
             </template>
             <!-- 編輯態 -->
             <div v-else class="item-form">
               <div class="form-row">
-                <label class="form-label">標籤</label>
-                <input v-model="poiDraft.label" class="form-input" placeholder="地標名稱" />
-                <label class="form-label ml">類型</label>
-                <select v-model="poiDraft.type" class="form-select">
-                  <option v-for="t in POI_TYPES" :key="t" :value="t">{{ t }}</option>
-                </select>
+                <label class="form-label">名稱</label>
+                <input v-model="smDraft.name" class="form-input" placeholder="來源名稱" />
+              </div>
+              <div class="form-row scope-row">
+                <label class="form-label">授權範圍</label>
+                <div class="scope-checks">
+                  <label v-for="opt in SCOPE_OPTIONS" :key="opt.value" class="scope-check-label">
+                    <input type="checkbox" :value="opt.value" v-model="smDraft.scopes" class="scope-checkbox" />
+                    {{ opt.label }}
+                  </label>
+                </div>
               </div>
               <div class="form-row">
-                <label class="form-label">緯度</label>
-                <input v-model.number="poiDraft.lat" type="number" step="0.0001" class="form-input short mono" />
-                <label class="form-label ml">經度</label>
-                <input v-model.number="poiDraft.lng" type="number" step="0.0001" class="form-input short mono" />
+                <label class="form-label">可用用途</label>
+                <input v-model="smDraft.purpose" class="form-input" placeholder="說明此來源的用途" />
               </div>
               <div class="form-actions">
-                <button class="row-btn ok" @click="requestPoiUpdate(poi.id)">儲存</button>
-                <button class="row-btn" @click="poiEditingId = null">取消</button>
+                <button class="row-btn ok" @click="requestSmUpdate(sm.id)">儲存</button>
+                <button class="row-btn" @click="smEditingId = null">取消</button>
               </div>
             </div>
           </div>
 
           <!-- 新增表單 -->
-          <div v-if="poiAddingNew" class="item-row add-row">
+          <div v-if="smAddingNew" class="item-row add-row">
             <div class="item-form">
               <div class="form-row">
-                <label class="form-label">標籤</label>
-                <input v-model="poiDraft.label" class="form-input" placeholder="地標名稱" />
-                <label class="form-label ml">類型</label>
-                <select v-model="poiDraft.type" class="form-select">
-                  <option v-for="t in POI_TYPES" :key="t" :value="t">{{ t }}</option>
-                </select>
+                <label class="form-label">名稱</label>
+                <input v-model="smDraft.name" class="form-input" placeholder="來源名稱" />
+              </div>
+              <div class="form-row scope-row">
+                <label class="form-label">授權範圍</label>
+                <div class="scope-checks">
+                  <label v-for="opt in SCOPE_OPTIONS" :key="opt.value" class="scope-check-label">
+                    <input type="checkbox" :value="opt.value" v-model="smDraft.scopes" class="scope-checkbox" />
+                    {{ opt.label }}
+                  </label>
+                </div>
               </div>
               <div class="form-row">
-                <label class="form-label">緯度</label>
-                <input v-model.number="poiDraft.lat" type="number" step="0.0001" class="form-input short mono" />
-                <label class="form-label ml">經度</label>
-                <input v-model.number="poiDraft.lng" type="number" step="0.0001" class="form-input short mono" />
+                <label class="form-label">可用用途</label>
+                <input v-model="smDraft.purpose" class="form-input" placeholder="說明此來源的用途（必填）" />
               </div>
               <div class="form-actions">
-                <button class="row-btn ok" @click="requestPoiAdd">儲存</button>
-                <button class="row-btn" @click="poiAddingNew = false">取消</button>
+                <button class="row-btn ok" @click="requestSmAdd">儲存</button>
+                <button class="row-btn" @click="smAddingNew = false">取消</button>
               </div>
             </div>
           </div>
@@ -153,57 +164,22 @@
 
         <div class="card-footer">
           <button
-            v-if="!poiAddingNew && poiEditingId === null"
+            v-if="!smAddingNew && smEditingId === null"
             class="add-btn"
-            @click="startPoiAdd"
-          >＋ 新增 POI</button>
-          <button class="text-btn" @click="poiMapOpen = !poiMapOpen">
-            {{ poiMapOpen ? '隱藏地圖預覽 ▲' : '顯示地圖預覽 ▼' }}
-          </button>
-        </div>
-        <div v-if="poiMapOpen" class="map-placeholder">
-          <span class="map-hint">地圖預覽（串接 Google Maps 後啟用）</span>
+            @click="startSmAdd"
+          >＋ 新增來源</button>
         </div>
       </InfoCard>
 
-      <!-- ③ 通知模板文字 ────────────────────────────────────── -->
-      <InfoCard title="通知模板文字">
-        <div class="tmpl-list">
-          <div v-for="meta in TEMPLATE_META" :key="meta.key" class="tmpl-row">
-            <div class="tmpl-header">
-              <span class="tmpl-label">{{ meta.label }}</span>
-              <span class="tmpl-vars">可用變數：<code>{{ meta.vars }}</code></span>
-            </div>
-            <!-- 顯示態 -->
-            <template v-if="tmplEditingKey !== meta.key">
-              <p class="tmpl-text">{{ store.notifyTemplates[meta.key] }}</p>
-              <button
-                class="row-btn"
-                :disabled="tmplEditingKey !== null"
-                @click="startTmplEdit(meta.key)"
-              >修改</button>
-            </template>
-            <!-- 編輯態 -->
-            <div v-else class="tmpl-edit">
-              <textarea
-                v-model="tmplDraft"
-                class="tmpl-textarea"
-                rows="2"
-                :placeholder="`使用 ${meta.vars} 等變數`"
-              />
-              <div class="tmpl-preview">
-                <span class="preview-label">預覽：</span>{{ tmplPreview }}
-              </div>
-              <div class="form-actions">
-                <button class="row-btn ok" @click="requestTmplUpdate(meta.key)">儲存</button>
-                <button class="row-btn" @click="tmplEditingKey = null">取消</button>
-              </div>
-            </div>
-          </div>
+      <!-- ③ D5 人工事件登錄（依賴地圖 SDK，待串接）──────────── -->
+      <InfoCard title="D5 人工事件登錄">
+        <div class="d5-placeholder">
+          <p class="d5-flow">登錄流程：路名／路口搜尋定位 → 地圖點選落點微調 → 選來源 → 選事件類型 → 送出</p>
+          <p class="d5-note">⏸ 待地圖 SDK 串接後啟用。事件標「合作通報」進入 D4 驗證狀態機，30 秒完成登錄為驗收目標。</p>
         </div>
       </InfoCard>
 
-      <!-- ④ 服務區域邊界 ────────────────────────────────────── -->
+      <!-- ④ 服務區域邊界（架構留門②，規格外，待確認）──────────── -->
       <InfoCard title="服務區域邊界">
         <p class="section-desc">北北基服務範圍 GeoJSON 多邊形邊界；變更後立即影響任務廣播範圍計算。</p>
 
@@ -250,12 +226,12 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useStaticDataStore, TEMPLATE_META, POI_TYPES } from '../stores/staticData'
-import { useToastStore }   from '../stores/toast'
-import OpsTopBar    from '../components/layout/OpsTopBar.vue'
-import InfoCard     from '../components/shared/InfoCard.vue'
+import { useStaticDataStore, SCOPE_OPTIONS } from '../stores/staticData'
+import { useToastStore }                     from '../stores/toast'
+import OpsTopBar     from '../components/layout/OpsTopBar.vue'
+import InfoCard      from '../components/shared/InfoCard.vue'
 import ConfirmDialog from '../components/shared/ConfirmDialog.vue'
-import Toast        from '../components/shared/Toast.vue'
+import Toast         from '../components/shared/Toast.vue'
 
 const store = useStaticDataStore()
 const toast = useToastStore()
@@ -265,12 +241,6 @@ const DATA_REASONS = [
   { value: 'internal',    label: '內部調整' },
   { value: 'operational', label: '運營需求' },
   { value: 'survey',      label: '實地勘測' },
-  { value: 'other',       label: '其他' },
-]
-const TMPL_REASONS = [
-  { value: 'operational', label: '運營調整' },
-  { value: 'correction',  label: '文字修正' },
-  { value: 'feedback',    label: '多方反饋' },
   { value: 'other',       label: '其他' },
 ]
 const BOUNDARY_REASONS = [
@@ -308,24 +278,19 @@ function onConfirm(reason) {
       store.deleteHotspot(op.id)
       toast.success(`已刪除熱點「${op.name}」・已留跡`)
       break
-    case 'poi-add':
-      store.addPOI(op.data)
-      toast.success(`已新增 POI「${op.data.label}」・已留跡`)
-      poiAddingNew.value = false
+    case 'sm-add':
+      store.addSource(op.data)
+      toast.success(`已新增合作來源「${op.data.name}」・已留跡`)
+      smAddingNew.value = false
       break
-    case 'poi-update':
-      store.updatePOI(op.id, op.data)
-      toast.success(`已更新 POI「${op.data.label}」・已留跡`)
-      poiEditingId.value = null
+    case 'sm-update':
+      store.updateSource(op.id, op.data)
+      toast.success(`已更新合作來源「${op.data.name}」・已留跡`)
+      smEditingId.value = null
       break
-    case 'poi-delete':
-      store.deletePOI(op.id)
-      toast.success(`已刪除 POI「${op.name}」・已留跡`)
-      break
-    case 'tmpl-update':
-      store.updateTemplate(op.key, op.text)
-      toast.success(`已更新「${op.label}」模板・已留跡`)
-      tmplEditingKey.value = null
+    case 'sm-delete':
+      store.deleteSource(op.id)
+      toast.success(`已刪除合作來源「${op.name}」・已留跡`)
       break
     case 'boundary-update':
       store.updateBoundary(op.geojson)
@@ -387,88 +352,53 @@ function requestHsDelete(hs) {
   })
 }
 
-// ── § 地圖事件 POI ────────────────────────────────────────
-const poiEditingId = ref(null)
-const poiAddingNew = ref(false)
-const poiDraft     = ref({ label: '', type: '收費站', lat: 25.0, lng: 121.5 })
-const poiMapOpen   = ref(false)
+// ── § 合作來源主檔 ─────────────────────────────────────────
+const SCOPE_LABELS = Object.fromEntries(SCOPE_OPTIONS.map(o => [o.value, o.label]))
 
-const POI_CHIP_MAP = {
-  '收費站':  'chip-info',
-  '易堵路段': 'chip-warn',
-  '匝道':    'chip-ok',
-  '警察局':  'chip-accent',
-  '其他':    'chip-default',
-}
-function poiChipClass(type) { return POI_CHIP_MAP[type] ?? 'chip-default' }
+const smEditingId = ref(null)
+const smAddingNew = ref(false)
+const smDraft     = ref({ name: '', scopes: [], purpose: '' })
 
-function startPoiEdit(poi) {
-  poiAddingNew.value = false
-  poiEditingId.value = poi.id
-  poiDraft.value = { label: poi.label, type: poi.type, lat: poi.lat, lng: poi.lng }
+function startSmEdit(sm) {
+  smAddingNew.value = false
+  smEditingId.value = sm.id
+  smDraft.value = { name: sm.name, scopes: [...sm.scopes], purpose: sm.purpose }
 }
 
-function startPoiAdd() {
-  poiEditingId.value = null
-  poiAddingNew.value = true
-  poiDraft.value = { label: '', type: '收費站', lat: 25.0, lng: 121.5 }
+function startSmAdd() {
+  smEditingId.value = null
+  smAddingNew.value = true
+  smDraft.value = { name: '', scopes: [], purpose: '' }
 }
 
-function requestPoiUpdate(id) {
-  if (!poiDraft.value.label.trim()) return
-  const d = { ...poiDraft.value }
-  pendingOp.value = { type: 'poi-update', id, data: d }
+function requestSmUpdate(id) {
+  if (!smDraft.value.name.trim() || !smDraft.value.purpose.trim()) return
+  const d = { ...smDraft.value, scopes: [...smDraft.value.scopes] }
+  pendingOp.value = { type: 'sm-update', id, data: d }
   openDialog({
-    title: `確認更新 POI「${d.label}」？`,
-    body:  `類型：<b>${d.type}</b>，座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>`,
+    title: `確認更新合作來源「${d.name}」？`,
+    body:  `授權範圍：<b>${d.scopes.map(s => SCOPE_LABELS[s]).join('、') || '（無）'}</b>`,
     reasons: DATA_REASONS,
   })
 }
 
-function requestPoiAdd() {
-  if (!poiDraft.value.label.trim()) return
-  const d = { ...poiDraft.value }
-  pendingOp.value = { type: 'poi-add', data: d }
+function requestSmAdd() {
+  if (!smDraft.value.name.trim() || !smDraft.value.purpose.trim()) return
+  const d = { ...smDraft.value, scopes: [...smDraft.value.scopes] }
+  pendingOp.value = { type: 'sm-add', data: d }
   openDialog({
-    title: `確認新增 POI「${d.label}」？`,
-    body:  `類型：<b>${d.type}</b>，座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>`,
+    title: `確認新增合作來源「${d.name}」？`,
+    body:  `授權範圍：<b>${d.scopes.map(s => SCOPE_LABELS[s]).join('、') || '（無）'}</b>`,
     reasons: DATA_REASONS,
   })
 }
 
-function requestPoiDelete(poi) {
-  pendingOp.value = { type: 'poi-delete', id: poi.id, name: poi.label }
+function requestSmDelete(sm) {
+  pendingOp.value = { type: 'sm-delete', id: sm.id, name: sm.name }
   openDialog({
-    title: `確認刪除 POI「${poi.label}」？`,
-    body:  '此操作將移除此地標，地圖上將不再顯示此標記。',
+    title: `確認刪除合作來源「${sm.name}」？`,
+    body:  '刪除後 D5 登錄時將無法選此來源。',
     reasons: DATA_REASONS,
-  })
-}
-
-// ── § 通知模板文字 ─────────────────────────────────────────
-const tmplEditingKey = ref(null)
-const tmplDraft      = ref('')
-
-const PREVIEW_VALUES = { type: '事故', road: '中山路段', points: '50', total: '1,200' }
-
-const tmplPreview = computed(() =>
-  tmplDraft.value.replace(/\{(\w+)\}/g, (_, k) => PREVIEW_VALUES[k] ?? `{${k}}`)
-)
-
-function startTmplEdit(key) {
-  tmplEditingKey.value = key
-  tmplDraft.value      = store.notifyTemplates[key]
-}
-
-function requestTmplUpdate(key) {
-  const text = tmplDraft.value.trim()
-  if (!text) return
-  const meta = TEMPLATE_META.find(m => m.key === key)
-  pendingOp.value = { type: 'tmpl-update', key, text, label: meta.label }
-  openDialog({
-    title: `確認更新「${meta.label}」模板？`,
-    body:  `新模板：<span style="font-family:var(--mono);font-size:12px;color:var(--accent)">${text}</span>`,
-    reasons: TMPL_REASONS,
   })
 }
 
@@ -585,19 +515,6 @@ function requestBoundaryUpdate() {
 
 .item-btns { display: flex; gap: 6px; flex-shrink: 0; }
 
-/* POI 類型 chip */
-.poi-chip {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-.chip-info    { background: rgba(88,193,212,.12); color: var(--info);     border: 1px solid var(--info); }
-.chip-warn    { background: rgba(230,182,58,.12);  color: var(--warn);     border: 1px solid var(--warn); }
-.chip-ok      { background: rgba(63,183,126,.12);  color: var(--ok);       border: 1px solid var(--ok); }
-.chip-accent  { background: rgba(76,154,255,.12);  color: var(--accent);   border: 1px solid var(--accent); }
-.chip-default { background: rgba(255,255,255,.06); color: var(--text-secondary); border: 1px solid var(--line); }
-
 /* 通用按鈕 */
 .row-btn {
   font-size: 12px;
@@ -657,20 +574,6 @@ function requestBoundaryUpdate() {
 .form-input.short { flex: none; width: 110px; }
 .form-input.mono  { font-family: var(--mono); }
 
-.form-select {
-  background: var(--bg-base);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: var(--sans);
-  font-size: 13px;
-  padding: 5px 10px;
-  height: 30px;
-  outline: none;
-  cursor: pointer;
-}
-.form-select:focus { border-color: var(--accent); }
-
 .unit-text { font-size: 12px; color: var(--text-secondary); }
 
 .form-actions { display: flex; gap: 6px; }
@@ -723,65 +626,54 @@ function requestBoundaryUpdate() {
 }
 .map-hint { font-size: 13px; color: var(--text-secondary); }
 
-/* ── § 通知模板 ── */
-.tmpl-list { display: grid; gap: 0; }
+/* ── § 合作來源主檔 ── */
+.sm-info { flex-direction: column; align-items: flex-start; gap: 5px; }
+.sm-purpose { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 
-.tmpl-row {
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(42,53,71,.4);
+.scope-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.scope-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: rgba(76,154,255,.08);
+  white-space: nowrap;
+}
+
+.scope-row { align-items: flex-start; }
+.scope-checks { display: flex; flex-wrap: wrap; gap: 10px; }
+.scope-check-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.scope-checkbox { accent-color: var(--accent); cursor: pointer; }
+
+/* ── § D5 人工事件登錄 ── */
+.d5-placeholder {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  padding: 14px 0;
 }
-.tmpl-row:last-child { border-bottom: none; }
-
-.tmpl-header { display: flex; align-items: baseline; gap: 12px; }
-.tmpl-label  { font-size: 14px; font-weight: 500; color: var(--text-primary); }
-.tmpl-vars   { font-size: 12px; color: var(--text-secondary); }
-.tmpl-vars code {
-  font-family: var(--mono);
-  background: var(--bg-base);
-  padding: 1px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-}
-
-.tmpl-text {
+.d5-flow {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.6;
   margin: 0;
-  border-left: 2px solid var(--line);
-  padding-left: 10px;
+  line-height: 1.8;
 }
-
-.tmpl-edit { display: grid; gap: 8px; }
-
-.tmpl-textarea {
-  width: 100%;
-  background: var(--bg-base);
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: var(--sans);
-  font-size: 13px;
-  padding: 8px 12px;
-  resize: vertical;
-  outline: none;
-  line-height: 1.6;
-  box-sizing: border-box;
-}
-.tmpl-textarea:focus { border-color: var(--accent); }
-
-.tmpl-preview {
+.d5-note {
   font-size: 12px;
   color: var(--text-secondary);
-  background: rgba(255,255,255,.03);
-  border: 1px solid var(--line);
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
   border-radius: 6px;
-  padding: 6px 10px;
   line-height: 1.6;
 }
-.preview-label { color: var(--text-secondary); margin-right: 4px; }
 
 /* ── § 服務區域邊界 ── */
 .section-desc {
@@ -821,9 +713,7 @@ function requestBoundaryUpdate() {
 }
 .boundary-textarea:focus { border-color: var(--accent); }
 
-.file-hidden {
-  display: none;
-}
+.file-hidden { display: none; }
 
 .form-error {
   font-size: 12px;

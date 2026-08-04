@@ -61,7 +61,7 @@ const MOCK_EVENTS = [
 
 export const useEventsStore = defineStore('events', () => {
   const events = ref([...MOCK_EVENTS])
-  const selectedId = ref('E-30771')
+  const selectedId = ref(null)
   const filters = ref({ types: [], statuses: [], sources: [] })
 
   const selectedEvent = computed(() =>

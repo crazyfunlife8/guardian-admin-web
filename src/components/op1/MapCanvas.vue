@@ -20,7 +20,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Loader } from '@googlemaps/js-api-loader'
+import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { useEventsStore } from '../../stores/events'
 import MapSearch from './MapSearch.vue'
 import MapFilter from './MapFilter.vue'
@@ -72,11 +72,11 @@ const DARK_STYLE = [
 ]
 
 async function initMap() {
-  const loader = new Loader({
+  setOptions({
     apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
     version: 'weekly',
   })
-  await loader.load()
+  await importLibrary('maps')
 
   map = new google.maps.Map(mapEl.value, {
     center: { lat: 25.054, lng: 121.531 },

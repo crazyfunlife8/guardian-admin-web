@@ -1,24 +1,52 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import client, { BASE_URL } from '../api/client'
 
-// navTo 規則：
-//   ev / task + link:'地圖' → 地圖 fly-to（未串接前暫跳事件詳情頁；task 無獨立頁留 null）
-//   alert + link:'詳情'     → 管線斷源告警屬 OP-1 範疇，留在當頁（null）
-//   human + link:'詳情'     → 依操作所屬頁面跳轉
-//   abuse + link:'詳情'     → 反濫用儀表 /op7
-const MOCK_LOGS = [
-  { id: 1, time: '22:47:28', tag: 'alert',  text: '情報網任務源 (g) 斷線判定成立——連續 3 次拉取失敗',         link: '詳情', navTo: null,           isNew: true },
-  { id: 2, time: '22:47:12', tag: 'task',   text: 'T-88213 逾時無人接・半徑放大至第 2 檔重新廣播',          link: '地圖', navTo: null           },
-  { id: 3, time: '22:46:55', tag: 'ev',     text: 'E-30771 臨時路檢（環河南路二段北向）新回報・未確認上圖', link: '地圖', navTo: null           },
-  { id: 4, time: '22:46:31', tag: 'human',  text: 'OP-07 下架 E-30764（依據：多方反饋）・已留跡',          link: '詳情', navTo: '/op7'          },
-  { id: 5, time: '22:45:58', tag: 'task',   text: 'T-88209 已接單（情報員 GI-0042・鎖定 15 分）',          link: '地圖', navTo: null           },
-  { id: 6, time: '22:45:20', tag: 'abuse',  text: '裝置 D-7f31 回報頻率超限・自動標記＋警示合併',           link: '詳情', navTo: '/op7'          },
-  { id: 7, time: '22:44:47', tag: 'ev',     text: 'E-30768 事故（市民高架）感測佐證印證・升已驗證',         link: '地圖', navTo: null           },
-]
+// audit action → { tag, text, link, navTo }
+const ACTION_MAP = {
+  EventCreated:       e => ({ tag: 'ev',    text: `E-${e.targetId} 新事件建立・未確認上圖`,                  link: '地圖', navTo: null }),
+  EventVerified:      e => ({ tag: 'ev',    text: `E-${e.targetId} 升已驗證`,                                link: '地圖', navTo: null }),
+  EventStatusChanged: e => ({ tag: 'ev',    text: `E-${e.targetId} 狀態變更`,                                link: '詳情', navTo: `/op2/${e.targetId}` }),
+  EventTakenDown:     e => ({ tag: 'human', text: `E-${e.targetId} 人工下架・已留跡`,                        link: '詳情', navTo: `/op2/${e.targetId}` }),
+  EventExtended:      e => ({ tag: 'human', text: `E-${e.targetId} TTL 延長`,                                link: '詳情', navTo: `/op2/${e.targetId}` }),
+  EventDispatched:    e => ({ tag: 'human', text: `E-${e.targetId} 轉內部派遣`,                              link: '詳情', navTo: `/op2/${e.targetId}` }),
+  TaskCreated:        e => ({ tag: 'task',  text: `T-${e.targetId} 任務廣播`,                                link: '地圖', navTo: null }),
+  TaskEscalated:      e => ({ tag: 'task',  text: `T-${e.targetId} 逾時無人接・半徑放大重新廣播`,            link: '地圖', navTo: null }),
+  TaskAccepted:       e => ({ tag: 'task',  text: `T-${e.targetId} 情報員 GI-${pad(e.actorId)} 接單・鎖定`, link: '地圖', navTo: null }),
+  TaskAbandoned:      e => ({ tag: 'task',  text: `T-${e.targetId} 棄單`,                                    link: '地圖', navTo: null }),
+  TaskCompleted:      e => ({ tag: 'task',  text: `T-${e.targetId} 查核完成`,                                link: '地圖', navTo: null }),
+  PipelineAlert:      e => ({ tag: 'alert', text: '管線告警—請確認七源狀態',                                 link: '詳情', navTo: null }),
+  AbuseDetected:      e => ({ tag: 'abuse', text: '反濫用偵測・裝置異常警示',                                link: '詳情', navTo: '/op7' }),
+  DeviceBlocked:      e => ({ tag: 'abuse', text: `裝置封鎖`,                                                link: '詳情', navTo: '/op7' }),
+  InformantSuspended: e => ({ tag: 'human', text: `GI-${pad(e.targetId)} 停權`,                              link: '詳情', navTo: `/op4/${e.targetId}` }),
+  InformantRemoved:   e => ({ tag: 'human', text: `GI-${pad(e.targetId)} 除名`,                              link: '詳情', navTo: `/op4/${e.targetId}` }),
+  RedemptionVerified: e => ({ tag: 'human', text: `RD-${e.targetId} 兌換核對凍結`,                          link: '詳情', navTo: '/op8' }),
+}
+
+function pad(id) { return String(id).padStart(4, '0') }
+
+function mapAuditToLog(audit) {
+  const mapper = ACTION_MAP[audit.action]
+  const mapped = mapper
+    ? mapper(audit)
+    : {
+        tag: audit.actorType === 'Operator' ? 'human' : 'ev',
+        text: `${audit.action}（${audit.targetType} #${audit.targetId}）`,
+        link: '詳情',
+        navTo: null,
+      }
+  const d = new Date(audit.at)
+  const time = [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':')
+  return { ...mapped, id: audit.id, time, isNew: false }
+}
 
 export const useLogsStore = defineStore('logs', () => {
-  const logs = ref([...MOCK_LOGS])
+  const logs      = ref([])
   const activeTag = ref('all')
+  let abortCtrl   = null
+  let pollTimer   = null
+  const seenIds   = new Set()
 
   const visibleLogs = computed(() =>
     activeTag.value === 'all'
@@ -29,12 +57,75 @@ export const useLogsStore = defineStore('logs', () => {
   function setTag(tag) { activeTag.value = tag }
 
   function pushLog(entry) {
-    logs.value.unshift({ ...entry, id: Date.now(), isNew: true })
+    if (seenIds.has(entry.id)) return
+    seenIds.add(entry.id)
+    logs.value.unshift({ ...entry, isNew: true })
     setTimeout(() => {
       const l = logs.value.find(x => x.id === entry.id)
       if (l) l.isNew = false
     }, 500)
+    if (logs.value.length > 200) logs.value.splice(200)
   }
 
-  return { logs, activeTag, visibleLogs, setTag, pushLog }
+  async function loadInitial() {
+    try {
+      const { data } = await client.get('/api/backend/dashboard/activity?limit=50')
+      ;[...data].reverse().forEach(a => {
+        const entry = mapAuditToLog(a)
+        if (!seenIds.has(entry.id)) {
+          seenIds.add(entry.id)
+          logs.value.unshift(entry)
+        }
+      })
+    } catch {}
+  }
+
+  function startPoll() {
+    pollTimer = setInterval(async () => {
+      try {
+        const { data } = await client.get('/api/backend/dashboard/activity?limit=20')
+        data.forEach(a => pushLog(mapAuditToLog(a)))
+      } catch {}
+    }, 5000)
+  }
+
+  async function connect() {
+    await loadInitial()
+    abortCtrl = new AbortController()
+    const token = localStorage.getItem('accessToken')
+    try {
+      const res = await fetch(`${BASE_URL}/api/backend/dashboard/stream`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+        signal: abortCtrl.signal,
+      })
+      if (!res.ok) throw new Error(`SSE ${res.status}`)
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const parts = buf.split('\n\n')
+        buf = parts.pop()
+        for (const chunk of parts) {
+          const line = chunk.split('\n').find(l => l.startsWith('data:'))
+          if (line) {
+            try { pushLog(mapAuditToLog(JSON.parse(line.slice(5).trim()))) } catch {}
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') startPoll()
+    }
+  }
+
+  function disconnect() {
+    abortCtrl?.abort()
+    abortCtrl = null
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+
+  return { logs, activeTag, visibleLogs, setTag, pushLog, connect, disconnect }
 })

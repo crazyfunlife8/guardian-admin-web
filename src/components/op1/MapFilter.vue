@@ -91,7 +91,7 @@ function clear() {
 <style scoped>
 .mapfilter {
   position: absolute;
-  left: 668px;
+  left: calc(16px + var(--todo-w, 280px) + 372px);
   top: 16px;
   z-index: 21;
 }

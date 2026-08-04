@@ -8,7 +8,7 @@ const MOCK_EVENTS = [
     id: 'E-30771', type: 'inspection', status: 'unverified',
     road: '環河南路二段（北向）', source: '用戶反饋',
     reportedAgo: '3 分鐘前', ttlMin: 41, taskStatus: '廣播中',
-    x: '58.5%', y: '35%',
+    lat: 25.0312, lng: 121.5012,
     history: [
       { time: '22:44', text: '建立（用戶反饋・未確認）' },
       { time: '22:45', text: '驗證任務廣播（半徑 2 檔・系統）' },
@@ -18,7 +18,7 @@ const MOCK_EVENTS = [
     id: 'E-30769', type: 'inspection', status: 'verified',
     road: '堤頂大道（南向）', source: '情報網',
     reportedAgo: '18 分鐘前', ttlMin: 26, taskStatus: '已接',
-    x: '33%', y: '52.5%',
+    lat: 25.0840, lng: 121.5742,
     history: [
       { time: '22:30', text: '建立（情報網・未確認）' },
       { time: '22:32', text: '驗證任務廣播' },
@@ -30,7 +30,7 @@ const MOCK_EVENTS = [
     id: 'E-30768', type: 'accident', status: 'verified',
     road: '市民高架（東向）', source: '感測',
     reportedAgo: '21 分鐘前', ttlMin: 39, taskStatus: null,
-    x: '73%', y: '62%',
+    lat: 25.0478, lng: 121.5435,
     history: [
       { time: '22:26', text: '建立（感測・未確認）' },
       { time: '22:27', text: '感測佐證印證・升已驗證' },
@@ -40,7 +40,7 @@ const MOCK_EVENTS = [
     id: 'E-30755', type: 'construction', status: 'verified',
     road: '重慶北路三段', source: '合作通報',
     reportedAgo: '2 小時前', ttlMin: 118, taskStatus: null,
-    x: '21%', y: '30%',
+    lat: 25.0718, lng: 121.5112,
     history: [
       { time: '20:42', text: '建立（合作通報・已驗證）' },
     ],
@@ -49,7 +49,7 @@ const MOCK_EVENTS = [
     id: 'E-30760', type: 'control', status: 'unverified',
     road: '基隆路一段', source: '用戶反饋',
     reportedAgo: '55 分鐘前', ttlMin: 5, taskStatus: '逾時',
-    x: '66%', y: '20%',
+    lat: 25.0330, lng: 121.5535,
     history: [
       { time: '21:52', text: '建立（用戶反饋・未確認）' },
       { time: '21:54', text: '驗證任務廣播' },

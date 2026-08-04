@@ -18,7 +18,7 @@ const query = ref('')
 <style scoped>
 .search {
   position: absolute;
-  left: 308px;
+  left: calc(16px + var(--todo-w, 280px) + 12px);
   top: 16px;
   display: flex;
   align-items: center;

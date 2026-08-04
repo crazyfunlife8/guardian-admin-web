@@ -6,10 +6,10 @@
       @menu-click="menuOpen = true"
       @theater-toggle="theaterMode = !theaterMode"
     />
-    <div class="stage">
+    <div class="stage" :style="{ '--log-h': logCollapsed ? '46px' : '236px', '--todo-w': theaterMode ? '320px' : '280px' }">
       <MapCanvas />
       <TodoPanel :theater-mode="theaterMode" @item-click="onTodoClick" />
-      <LogStream @log-click="onLogClick" />
+      <LogStream v-model:collapsed="logCollapsed" @log-click="onLogClick" />
     </div>
   </div>
 
@@ -17,17 +17,34 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TopBar    from '../components/op1/TopBar.vue'
 import MapCanvas from '../components/op1/MapCanvas.vue'
 import TodoPanel from '../components/op1/TodoPanel.vue'
 import LogStream from '../components/op1/LogStream.vue'
 import OpsMenu   from '../components/op1/OpsMenu.vue'
+import { useLogsStore }    from '../stores/logs'
+import { useSourcesStore } from '../stores/sources'
 
-const router      = useRouter()
-const menuOpen    = ref(false)
-const theaterMode = ref(false)
+const router       = useRouter()
+const menuOpen     = ref(false)
+const theaterMode  = ref(false)
+const logCollapsed = ref(false)
+
+const logsStore    = useLogsStore()
+const sourcesStore = useSourcesStore()
+
+watch(theaterMode, (val) => { if (val) logCollapsed.value = true })
+
+onMounted(() => {
+  logsStore.connect()
+  sourcesStore.startPoll()
+})
+onUnmounted(() => {
+  logsStore.disconnect()
+  sourcesStore.stopPoll()
+})
 
 function onSourceClick(id) {
   console.log('source detail:', id)

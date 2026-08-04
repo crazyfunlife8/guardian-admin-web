@@ -78,6 +78,7 @@ function badgeClass(count) {
   cursor: pointer;
   font-size: 13px;
   font-family: var(--sans);
+  padding-left: 8px;
 }
 
 ul { list-style: none; }

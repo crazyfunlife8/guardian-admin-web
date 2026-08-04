@@ -1,5 +1,5 @@
 <template>
-  <section class="log">
+  <section class="log" :class="{ collapsed }">
     <div class="panel-head">
       <h2>運行日誌流</h2>
       <div class="filters">
@@ -11,11 +11,11 @@
           @click="logsStore.setTag(f.key)"
         >{{ f.label }}</span>
       </div>
-      <button class="collapse" @click="collapsed = !collapsed">
+      <button class="collapse" @click="$emit('update:collapsed', !collapsed)">
         {{ collapsed ? '展開 ▴' : '收合 ▾' }}
       </button>
     </div>
-    <ol v-if="!collapsed">
+    <ol>
       <li
         v-for="entry in visibleLogs"
         :key="entry.id"
@@ -32,17 +32,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogsStore } from '../../stores/logs'
 
-defineEmits(['log-click'])
+defineEmits(['log-click', 'update:collapsed'])
+
+const props = defineProps({ collapsed: Boolean })
 
 const logsStore = useLogsStore()
 const { visibleLogs, activeTag } = storeToRefs(logsStore)
 
 const TAG_LABELS = { ev: '事件', task: '任務', alert: '管線', human: '人工', abuse: '反濫用' }
-const collapsed = ref(false)
 
 const filterOptions = [
   { key: 'all',   label: '全部' },
@@ -57,10 +57,13 @@ const filterOptions = [
 <style scoped>
 .log {
   position: absolute;
-  left: 312px;
+  left: calc(16px + var(--todo-w, 280px) + 16px);
   right: 16px;
   bottom: 16px;
   height: 236px;
+  max-height: 236px;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
   background: rgba(21, 28, 38, .94);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -68,6 +71,9 @@ const filterOptions = [
   flex-direction: column;
   backdrop-filter: blur(6px);
   z-index: 20;
+}
+.log.collapsed {
+  max-height: 46px;
 }
 
 .panel-head {

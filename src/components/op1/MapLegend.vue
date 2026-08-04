@@ -27,7 +27,8 @@ import MarkerIcon from './MarkerIcon.vue'
 .legend {
   position: absolute;
   right: 16px;
-  bottom: 268px;
+  bottom: calc(var(--log-h, 236px) + 32px);
+  transition: bottom 0.25s ease;
   background: rgba(21, 28, 38, .92);
   border: 1px solid var(--line);
   border-radius: 10px;

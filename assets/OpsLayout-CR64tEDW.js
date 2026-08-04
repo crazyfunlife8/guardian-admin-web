@@ -1,1 +1,0 @@
-import{N as e,j as t,o as n,w as r,x as i}from"./index-BmRudTcG.js";var a={},o={class:`ops-root`},s={class:`ops-layout`};function c(n,a){return t(),r(`div`,o,[e(n.$slots,`topbar`,{},void 0,!0),i(`div`,s,[e(n.$slots,`queue`,{},void 0,!0),e(n.$slots,`detail`,{},void 0,!0)])])}var l=n(a,[[`render`,c],[`__scopeId`,`data-v-0160aa50`]]);export{l as t};

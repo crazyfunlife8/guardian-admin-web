@@ -2,11 +2,11 @@
   <li :class="{ sel: selected }" @click="$emit('select', item.id)">
     <div class="q-row1">
       <span class="aid">{{ item.id }}</span>
-      <span class="type-tag">{{ item.type }}</span>
+      <span class="type-tag">{{ item.typeLabel }}</span>
       <StatusBadge class="q-badge" :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANTS[item.status]" />
     </div>
     <div class="q-row2">
-      <span class="mono">{{ item.informantId }}</span>
+      <span class="mono">{{ item.relatedId ? `E-${item.relatedId}` : '—' }}</span>
       <span class="mono">{{ item.submittedAt }}</span>
     </div>
   </li>
@@ -21,17 +21,16 @@ defineProps({
 })
 defineEmits(['select'])
 
+// TODO(後端): SupportTicketStatus enum 值為 Open/InProgress/Resolved
 const STATUS_LABELS = {
-  pending:       '待處理',
-  investigating: '處理中',
-  upheld:        '成立',
-  rejected:      '不成立',
+  Open:       '待處理',
+  InProgress: '調查中',
+  Resolved:   '已結案',
 }
 const STATUS_VARIANTS = {
-  pending:       'wait',
-  investigating: 'info',
-  upheld:        'ok',
-  rejected:      'danger',
+  Open:       'wait',
+  InProgress: 'info',
+  Resolved:   'ok',
 }
 </script>
 

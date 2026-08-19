@@ -1,116 +1,126 @@
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { defineStore } from 'pinia'
+import client from '../api/client'
 
-const TRANSITIONS = {
-  accept:  { from: ['pending'],       to: 'investigating', text: '受理申訴，進入調查' },
-  uphold:  { from: ['investigating'], to: 'upheld',        text: '裁決成立' },
-  reject:  { from: ['investigating'], to: 'rejected',      text: '裁決不成立' },
+function formatAgo(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+  if (mins < 1)  return '剛剛'
+  if (mins < 60) return `${mins} 分鐘前`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs} 小時前`
+  return `${Math.floor(hrs / 24)} 天前`
+}
+
+// ticketType 使用 API 文件 3.5 定義的小寫值：appeal / report / change_request
+const SUBTYPE_LABELS = {
+  ReputationDispute: '信譽異議',
+  RemovalDispute:    '除名異議',
+  General:           '一般申訴',
+}
+
+function typeLabel(ticketType, subtype) {
+  const sub = SUBTYPE_LABELS[subtype] ?? subtype ?? ''
+  if (ticketType === 'appeal') return sub ? `申訴類・${sub}` : '申訴'
+  return ticketType ? `${ticketType}${sub ? '・' + sub : ''}` : sub || '—'
+}
+
+function mapListItem(d) {
+  return {
+    id:          String(d.id),
+    typeLabel:   typeLabel(d.ticketType, d.subtype),
+    status:      d.status ?? '',   // Open / InProgress / Resolved
+    relatedType: d.relatedType ?? null,
+    relatedId:   d.relatedId ?? null,
+    submittedAt: formatAgo(d.createdAt),
+  }
+}
+
+function mapDetail(d) {
+  return {
+    id:            String(d.id),
+    typeLabel:     typeLabel(d.ticketType, d.subtype),
+    ticketType:    d.ticketType ?? '',
+    subtype:       d.subtype ?? '',
+    status:        d.status ?? '',
+    content:       d.content ?? '',
+    submitterType: d.submitterType ?? '',
+    submitterId:   d.submitterId ?? null,
+    relatedType:   d.relatedType ?? null,
+    relatedId:     d.relatedId ?? null,
+    resolution:    d.resolution ?? null,
+    submittedAt:   formatAgo(d.createdAt),
+    resolvedAt:    d.resolvedAt ? new Date(d.resolvedAt).toLocaleDateString('zh-TW') : null,
+    // TODO(後端): TicketResponse 無 history/audit_log 欄位，審理歷程暫不可用
+    history: [],
+    result: null,  // client-side only: 'upheld' | 'rejected' | null
+  }
 }
 
 export const useAppealsStore = defineStore('appeals', () => {
-  const appeals = ref([
-    {
-      id: 'AP5-001',
-      informantId: 'GI-0042',
-      type: '申訴類・信譽異議',
-      description: '本次任務回報的路況屬實，但系統評分為誤報導致信譽分扣減，請求重新審核評分結果。回報時間與事件發生時間吻合，現場照片存於任務記錄中。',
-      relatedEventId: 'EV-003',
-      status: 'pending',
-      submittedAt: '08:30',
-      result: null,
-      history: [
-        { time: '08:30', text: '申訴提交', actor: '系統' },
-      ],
-    },
-    {
-      id: 'AP5-002',
-      informantId: 'GI-0071',
-      type: '申訴類・信譽異議',
-      description: '回報當時確有施工封路，惟事後施工結束導致難以驗證，請求重新評估誤報判定依據，並恢復遭扣除之信譽分。',
-      relatedEventId: 'EV-001',
-      status: 'investigating',
-      submittedAt: '昨日 14:20',
-      result: null,
-      history: [
-        { time: '昨日 14:20', text: '申訴提交', actor: '系統' },
-        { time: '昨日 14:35', text: '受理申訴，進入調查（內部查核）', actor: '後台人員' },
-      ],
-    },
-    {
-      id: 'AP5-003',
-      informantId: 'GI-0105',
-      type: '申訴類・信譽異議',
-      description: '否認相關違規行為，聲稱系統誤判，請求審查停權決定並提供詳細違規紀錄，要求恢復信譽分與帳號狀態。',
-      relatedEventId: null,
-      status: 'rejected',
-      submittedAt: '昨日 10:00',
-      result: 'rejected',
-      history: [
-        { time: '昨日 10:00', text: '申訴提交', actor: '系統' },
-        { time: '昨日 10:20', text: '受理申訴，進入調查（內部查核）', actor: '後台人員' },
-        { time: '昨日 11:30', text: '調查完畢，進入裁決', actor: '後台人員' },
-        { time: '昨日 13:00', text: '裁決不成立（規則判定）', actor: '後台 admin' },
-      ],
-    },
-    {
-      id: 'AP5-004',
-      informantId: 'GI-0033',
-      type: '申訴類・除名異議',
-      description: '對除名決定提出異議，聲稱違規標記係因系統配對異常所致，請求重新調查並撤銷除名處分。',
-      relatedEventId: null,
-      status: 'upheld',
-      submittedAt: '3天前 09:15',
-      result: 'upheld',
-      history: [
-        { time: '3天前 09:15', text: '申訴提交', actor: '系統' },
-        { time: '3天前 09:30', text: '受理申訴，進入調查（內部查核）', actor: '後台人員' },
-        { time: '3天前 11:00', text: '調查完畢，進入裁決', actor: '後台人員' },
-        { time: '3天前 14:00', text: '裁決成立（調查核實）', actor: '後台 admin' },
-      ],
-    },
-    {
-      id: 'AP5-005',
-      informantId: 'GI-0118',
-      type: '用戶檢舉',
-      description: '收到用戶反映某情報員重複回報相同路況、疑似刷任務，附有時間戳記截圖，請求調查是否涉及系統濫用。',
-      relatedEventId: 'EV-002',
-      status: 'pending',
-      submittedAt: '06:50',
-      result: null,
-      history: [
-        { time: '06:50', text: '申訴提交', actor: '系統' },
-      ],
-    },
-  ])
-
+  const tickets      = ref([])
+  const _cache       = reactive({})
   const filterStatus = ref('all')
-  const selectedId   = ref('AP5-001')
+  const selectedId   = ref(null)
+  const loading      = ref(false)
 
   const filteredAppeals = computed(() => {
-    const f = filterStatus.value
-    if (f === 'all')    return appeals.value
-    if (f === 'closed') return appeals.value.filter(a => ['upheld', 'rejected'].includes(a.status))
-    return appeals.value.filter(a => a.status === f)
+    if (filterStatus.value === 'all') return tickets.value
+    return tickets.value.filter(t => t.status === filterStatus.value)
   })
 
-  const selectedAppeal = computed(() =>
-    appeals.value.find(a => a.id === selectedId.value) ?? null
-  )
+  const selectedAppeal = computed(() => _cache[selectedId.value] ?? null)
 
   function setFilter(key) { filterStatus.value = key }
-  function select(id)     { selectedId.value = id }
 
-  function applyAction(id, action, reason) {
-    const appeal = appeals.value.find(a => a.id === id)
-    if (!appeal) return
-    const tr = TRANSITIONS[action]
-    if (!tr || !tr.from.includes(appeal.status)) return
-    appeal.status = tr.to
-    if (tr.to === 'upheld')   appeal.result = 'upheld'
-    if (tr.to === 'rejected') appeal.result = 'rejected'
-    const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-    appeal.history.push({ time: now, text: `${tr.text}（${reason}）`, actor: '後台人員' })
+  async function select(id) {
+    selectedId.value = id
+    if (id && !_cache[id]) {
+      try {
+        const { data } = await client.get(`/api/backend/tickets/${id}`)
+        _cache[id] = mapDetail(data)
+      } catch (err) {
+        console.error('fetchTicket failed', err)
+      }
+    }
   }
 
-  return { appeals, filterStatus, selectedId, filteredAppeals, selectedAppeal, setFilter, select, applyAction }
+  async function load() {
+    loading.value = true
+    try {
+      const { data } = await client.get('/api/backend/tickets', { params: { type: 'appeal' } })
+      tickets.value = data.map(mapListItem)
+      if (!selectedId.value && tickets.value.length) select(tickets.value[0].id)
+    } catch (err) {
+      console.error('load appeals failed', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function applyAction(id, action, reason) {
+    if (action === 'accept') {
+      await client.post(`/api/backend/tickets/${id}/claim`)
+    } else {
+      const prefix = action === 'uphold' ? 'upheld' : 'rejected'
+      await client.post(`/api/backend/tickets/${id}/resolve`, { resolution: `${prefix}:${reason}` })
+    }
+    if (_cache[id]) {
+      if (action === 'accept') {
+        _cache[id].status = 'InProgress'
+      } else {
+        _cache[id].status = 'Resolved'
+        _cache[id].result = action === 'uphold' ? 'upheld' : 'rejected'
+        _cache[id].resolution = `${action === 'uphold' ? 'upheld' : 'rejected'}:${reason}`
+      }
+    }
+    const listItem = tickets.value.find(t => t.id === id)
+    if (listItem) listItem.status = action === 'accept' ? 'InProgress' : 'Resolved'
+  }
+
+  return {
+    tickets, filterStatus, selectedId, filteredAppeals, selectedAppeal, loading,
+    setFilter, select, load, applyAction,
+  }
 })

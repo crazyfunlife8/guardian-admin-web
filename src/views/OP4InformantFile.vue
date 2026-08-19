@@ -33,11 +33,14 @@
         </div>
 
         <!-- 結果 -->
-        <div class="result-wrap">
+        <div v-if="hasQuery" class="result-wrap">
           <div class="result-header">
-            <span class="result-count">{{ results.length }} 筆結果</span>
+            <span class="result-count">
+              <template v-if="searching">搜尋中…</template>
+              <template v-else>{{ results.length }} 筆結果</template>
+            </span>
           </div>
-          <ul v-if="results.length" class="result-list">
+          <ul v-if="!searching && results.length" class="result-list">
             <InformantResultItem
               v-for="item in results"
               :key="item.id"
@@ -45,9 +48,13 @@
               @select="goProfile"
             />
           </ul>
-          <div v-else-if="query || advQuery" class="no-result">
+          <div v-else-if="!searching" class="no-result">
             <p>找不到符合「{{ query || advQuery }}」的情報員</p>
           </div>
+        </div>
+        <div v-else class="search-hint">
+          <p>輸入情報員編號（GI-XXXX）直接查詢</p>
+          <p class="hint-sub">或展開進階搜尋以手機末碼 / 姓名查詢</p>
         </div>
       </div>
     </div>
@@ -60,9 +67,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useInformantsStore } from '../stores/informants'
+import { ref, computed, watch } from 'vue'
+import { useRoute, useRouter }  from 'vue-router'
+import { storeToRefs }          from 'pinia'
+import { useInformantsStore }   from '../stores/informants'
 import OpsTopBar          from '../components/layout/OpsTopBar.vue'
 import InformantResultItem from '../components/op4/InformantResultItem.vue'
 import InformantProfile   from '../components/op4/InformantProfile.vue'
@@ -70,24 +78,25 @@ import InformantProfile   from '../components/op4/InformantProfile.vue'
 const route  = useRoute()
 const router = useRouter()
 const store  = useInformantsStore()
+const { informants, searching } = storeToRefs(store)
 
 const informantId = computed(() => route.params.informantId ?? null)
 
-// 搜尋
 const query    = ref('')
 const advQuery = ref('')
 const showAdv  = ref(false)
 
-const results = computed(() => {
-  const q   = query.value.trim().toLowerCase()
-  const adv = advQuery.value.trim().toLowerCase()
-  return store.informants.filter(inf => {
-    if (q   && !inf.id.toLowerCase().includes(q))   return false
-    if (adv && !inf.name.includes(advQuery.value.trim()) &&
-               !inf.phoneSuffix.includes(adv))       return false
-    return true
-  })
-})
+const hasQuery = computed(() => !!(query.value.trim() || advQuery.value.trim()))
+const results  = computed(() => informants.value)
+
+let _timer = null
+function debouncedSearch(q) {
+  clearTimeout(_timer)
+  _timer = setTimeout(() => store.search(q), 300)
+}
+
+watch(query,    (v) => debouncedSearch(v.trim() || advQuery.value.trim()))
+watch(advQuery, (v) => debouncedSearch(v.trim() || query.value.trim()))
 
 function goProfile(id) {
   router.push(`/op4/${id}`)
@@ -191,6 +200,15 @@ function goProfile(id) {
   color: var(--text-secondary);
   font-size: 14px;
 }
+
+.search-hint {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 2;
+}
+.hint-sub { font-size: 13px; }
 
 /* 檔案態 */
 .profile-view {

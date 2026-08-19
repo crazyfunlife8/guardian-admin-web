@@ -10,6 +10,7 @@
     <MapFilter />
     <EventCard
       :event="selectedEvent"
+      :click-pos="clickPos"
       @close="evStore.clearSelection()"
       @action="handleAction"
     />
@@ -28,24 +29,31 @@ import EventCard from './EventCard.vue'
 import MapLegend from './MapLegend.vue'
 
 const evStore = useEventsStore()
-const { filteredEvents, selectedId, selectedEvent, hasFilters, activeFilterLabel } = storeToRefs(evStore)
+const { filteredEvents, selectedId, selectedEvent, clickPos, hasFilters, activeFilterLabel } = storeToRefs(evStore)
 
 const mapEl = ref(null)
 let map = null
 const markers = new Map()
 
-const STATUS_COLORS = { unverified: '#E5B84B', verified: '#3FB77E', cleared: '#6B7A92' }
+const STATUS_COLORS = {
+  Unconfirmed: '#E5B84B',
+  Verified:    '#3FB77E',
+  Cleared:     '#6B7A92',
+  Expired:     '#4A5568',
+  FalseReport: '#4A5568',
+}
 
 const ICON_SHAPES = {
-  inspection:   { fn: c => `<path d="M13 1 L25 6 V15 C25 23 19 27 13 29 C7 27 1 23 1 15 V6 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 26, h: 30 },
-  accident:     { fn: c => `<path d="M13 1 L25 22 H1 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 26, h: 24 },
-  construction: { fn: c => `<rect x="1" y="1" width="20" height="20" rx="3" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 22, h: 22 },
-  control:      { fn: c => `<path d="M12 1 L22 7 V17 L12 23 L2 17 V7 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 24, h: 24 },
+  Checkpoint:   { fn: c => `<path d="M13 1 L25 6 V15 C25 23 19 27 13 29 C7 27 1 23 1 15 V6 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 26, h: 30 },
+  Accident:     { fn: c => `<path d="M13 1 L25 22 H1 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 26, h: 24 },
+  Construction: { fn: c => `<rect x="1" y="1" width="20" height="20" rx="3" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 22, h: 22 },
+  Control:      { fn: c => `<path d="M12 1 L22 7 V17 L12 23 L2 17 V7 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 24, h: 24 },
+  Flooding:     { fn: c => `<path d="M13 1 C13 1 1 14 1 20 C1 26 6.5 30 13 30 C19.5 30 25 26 25 20 C25 14 13 1 13 1 Z" fill="${c}" stroke="#0D1117" stroke-width="1.5"/>`, w: 26, h: 31 },
 }
 
 function makeIcon(type, status, selected = false) {
   const color = STATUS_COLORS[status] ?? '#9AA7BA'
-  const s = ICON_SHAPES[type] ?? ICON_SHAPES.inspection
+  const s = ICON_SHAPES[type] ?? ICON_SHAPES.Checkpoint
   const scale = selected ? 1.3 : 1
   const w = Math.round(s.w * scale), h = Math.round(s.h * scale)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${s.w} ${s.h}">${s.fn(color)}</svg>`
@@ -102,7 +110,17 @@ function addMarker(ev) {
     title: ev.road,
     zIndex: ev.id === selectedId.value ? 10 : 1,
   })
-  m.addListener('click', () => evStore.select(ev.id))
+  m.addListener('click', (mapsEvent) => {
+    evStore.select(ev.id)
+    const rect = mapEl.value.getBoundingClientRect()
+    const de = mapsEvent.domEvent
+    evStore.setClickPos({
+      x: de.clientX - rect.left,
+      y: de.clientY - rect.top,
+      containerW: rect.width,
+      containerH: rect.height,
+    })
+  })
   markers.set(ev.id, m)
 }
 
@@ -132,18 +150,29 @@ watch(selectedId, (next, prev) => {
 watch(evStore.events, () => {
   evStore.events.forEach(ev => {
     const m = markers.get(ev.id)
-    if (m) m.setIcon(makeIcon(ev.type, ev.status, ev.id === selectedId.value))
+    if (m) {
+      m.setIcon(makeIcon(ev.type, ev.status, ev.id === selectedId.value))
+    } else {
+      addMarker(ev)
+    }
   })
 }, { deep: true })
 
-onMounted(initMap)
+onMounted(async () => {
+  await initMap()
+  evStore.loadMap()
+})
 onUnmounted(() => {
   markers.forEach(m => m.setMap(null))
   markers.clear()
 })
 
-function handleAction({ eventId, action }) {
-  console.log('OP action', eventId, action)
+async function handleAction({ eventId, action, basis }) {
+  try {
+    await evStore.applyEventAction(eventId, action, basis)
+  } catch (err) {
+    console.error('action failed', err)
+  }
 }
 </script>
 

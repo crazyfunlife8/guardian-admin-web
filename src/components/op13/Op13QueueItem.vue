@@ -2,11 +2,11 @@
   <li :class="{ sel: selected }" @click="$emit('select', item.id)">
     <div class="q-row1">
       <span class="aid">{{ item.id }}</span>
-      <span class="type-tag" :class="TYPE_CHIP[item.type]">{{ item.type }}</span>
+      <span class="type-tag" :class="TYPE_CHIP[item.typeLabel]">{{ item.typeLabel }}</span>
       <StatusBadge class="q-badge" :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANTS[item.status]" />
     </div>
     <div class="q-row2">
-      <span class="desc">{{ item.description }}</span>
+      <span class="desc">{{ item.relatedType === 'Event' ? `事件 #${item.relatedId}` : (item.relatedType ? `${item.relatedType} #${item.relatedId}` : '無關聯對象') }}</span>
       <span class="mono time-text">{{ item.submittedAt }}</span>
     </div>
   </li>
@@ -21,14 +21,14 @@ defineProps({
 })
 defineEmits(['select'])
 
-const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案' }
-const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok' }
+const STATUS_LABELS   = { Open: '待處理', InProgress: '處理中', Resolved: '已結案' }
+const STATUS_VARIANTS = { Open: 'wait',   InProgress: 'info',   Resolved: 'ok' }
 
 const TYPE_CHIP = {
-  '一般客服':       'type-accent',
+  '一般客服':         'type-accent',
   '申訴類・信譽異議': 'type-warn',
   '申訴類・除名異議': 'type-danger',
-  '用戶檢舉':       'type-info',
+  '用戶檢舉':         'type-info',
 }
 </script>
 

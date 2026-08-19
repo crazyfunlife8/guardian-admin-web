@@ -14,7 +14,7 @@
       >
         <span class="name">{{ item.label }}</span>
         <span>
-          <span class="badge" :class="badgeClass(item.count)">{{ item.count }}</span>
+          <span class="badge" :class="badgeClass(item.count, item.key)">{{ item.count }}</span>
           <span class="arrow">→</span>
         </span>
       </li>
@@ -23,28 +23,34 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { useDashboardStore } from '../../stores/dashboard'
 
 defineProps({ theaterMode: { type: Boolean, default: false } })
 defineEmits(['item-click'])
+
 const router = useRouter()
-
 const collapsed = ref(false)
+const { todo } = storeToRefs(useDashboardStore())
 
-const items = ref([
-  { key: 'qualification', label: '資格審核',       count: 3, route: '/op3' },
-  { key: 'appeal',        label: '申訴與檢舉',     count: 1, route: '/op5' },
-  { key: 'redemption',    label: '兌換核銷',       count: 5, route: '/op8' },
-  { key: 'overdue-task',  label: '逾時無人接任務', count: 2, route: null },
-  { key: 'stale',         label: '久未複查掛點',   count: 4, route: null },
-  { key: 'mismatch',      label: '異常配對',       count: 0, route: '/op7' },
-  { key: 'pipeline',      label: '管線告警',       count: 1, route: '/op7' },
+const DANGER_KEYS = new Set(['overdue-task', 'pipeline'])
+
+const items = computed(() => [
+  { key: 'qualification', label: '資格審核',       count: todo.value.qualificationReview,     route: '/op3' },
+  { key: 'appeal',        label: '申訴與檢舉',     count: todo.value.openTickets,             route: '/op5' },
+  { key: 'redemption',    label: '兌換核銷',       count: todo.value.redemptionPendingReview, route: '/op8' },
+  { key: 'overdue-task',  label: '逾時無人接任務', count: todo.value.expiredUnacceptedTasks,  route: null   },
+  { key: 'stale',         label: '久未複查掛點',   count: todo.value.staleVerifiedEvents,     route: null   },
+  { key: 'suspicious',    label: '可疑覆核',       count: todo.value.suspiciousObservations,  route: '/op7' },
+  { key: 'mismatch',      label: '異常配對',       count: todo.value.abnormalPairings,        route: '/op7' },
+  { key: 'pipeline',      label: '管線告警',       count: todo.value.pipelineAlerts,          route: '/op7' },
 ])
 
-function badgeClass(count) {
+function badgeClass(count, key) {
   if (count === 0) return 'zero'
-  if (count >= 2 && ['overdue-task', 'pipeline'].includes) return 'danger'
+  if (DANGER_KEYS.has(key)) return 'danger'
   return 'warn'
 }
 </script>

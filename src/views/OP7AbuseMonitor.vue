@@ -152,8 +152,8 @@
 </template>
 
 <script setup>
-import { ref }         from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref, onMounted } from 'vue'
+import { storeToRefs }    from 'pinia'
 import { useAbuseCheckStore, RULE_GROUP_META } from '../stores/abuseCheck'
 import { useToastStore }                       from '../stores/toast'
 import OpsTopBar    from '../components/layout/OpsTopBar.vue'
@@ -168,6 +168,8 @@ import Toast        from '../components/shared/Toast.vue'
 
 const store = useAbuseCheckStore()
 const toast = useToastStore()
+
+onMounted(() => store.loadObservations())
 
 const {
   filteredCases, selectedId, filterStatus, pendingCount,

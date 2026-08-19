@@ -35,8 +35,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref, onMounted } from 'vue'
+import { storeToRefs }    from 'pinia'
 import { useRedemptionStore } from '../stores/redemption'
 import OpsLayout      from '../components/layout/OpsLayout.vue'
 import OpsTopBar      from '../components/layout/OpsTopBar.vue'
@@ -49,11 +49,13 @@ const store = useRedemptionStore()
 const { filteredOrders, selectedId, filterState } = storeToRefs(store)
 const showAddDialog = ref(false)
 
+onMounted(() => store.load())
+
 const FILTERS = [
-  { label: '待核對', key: 'wait' },
-  { label: '已核對', key: 'checked' },
-  { label: '已發放', key: 'issued' },
-  { label: '掛起',   key: 'hold' },
+  { label: '待核對', key: 'PendingReview' },
+  { label: '已核對', key: 'Reserved' },
+  { label: '已發放', key: 'Disbursed' },
+  { label: '掛起',   key: 'Held' },
   { label: '全部',   key: 'all' },
 ]
 </script>

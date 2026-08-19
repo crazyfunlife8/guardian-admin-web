@@ -28,18 +28,18 @@
         <table class="region-table">
           <thead>
             <tr>
-              <th class="col-region">區域</th>
+              <th class="col-region">區域 · 事件類型</th>
               <th class="col-mode">任務模式</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in store.regionModes" :key="row.region">
-              <td class="col-region">{{ row.region }}</td>
+            <tr v-for="row in store.regionModes" :key="`${row.adminAreaCode}-${row.eventType}`">
+              <td class="col-region">{{ row.adminAreaCode }} · {{ EVENT_TYPE_LABELS[row.eventType] ?? row.eventType }}</td>
               <td class="col-mode">
                 <select
                   class="mode-select"
                   :value="row.mode"
-                  @change="onRegionModeChange(row.region, row.mode, $event.target.value)"
+                  @change="onRegionModeChange(row, $event.target.value)"
                 >
                   <option
                     v-for="(label, key) in REGION_MODE_LABELS"
@@ -68,8 +68,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useParamsStore, GROUP_META, REGION_MODE_LABELS } from '../stores/params'
+
+const EVENT_TYPE_LABELS = {
+  Checkpoint:   '臨時路檢',
+  Accident:     '事故',
+  Construction: '施工',
+  Control:      '管制',
+  Flooding:     '積水',
+}
 import { useToastStore }                                    from '../stores/toast'
 import OpsTopBar    from '../components/layout/OpsTopBar.vue'
 import InfoCard     from '../components/shared/InfoCard.vue'
@@ -79,6 +87,11 @@ import Toast        from '../components/shared/Toast.vue'
 
 const store = useParamsStore()
 const toast = useToastStore()
+
+onMounted(() => {
+  store.loadParams()
+  store.loadRegionModes()
+})
 
 const WARN_EXTRA = '⚠ 此設定將立即生效，影響全系統運作，請謹慎操作。'
 
@@ -107,14 +120,22 @@ function onRequestSave(key, newValue) {
 }
 
 // ── 分區模式切換 ──────────────────────────────────────
-function onRegionModeChange(region, oldMode, newMode) {
+function onRegionModeChange(row, newMode) {
+  const oldMode = row.mode
   if (oldMode === newMode) return
-  pendingChange.value = { type: 'region', region, oldMode, newMode }
+  pendingChange.value = {
+    type: 'region',
+    adminAreaCode: row.adminAreaCode,
+    eventType: row.eventType,
+    oldMode,
+    newMode,
+  }
 
+  const label = `${row.adminAreaCode} · ${EVENT_TYPE_LABELS[row.eventType] ?? row.eventType}`
   dialog.value = {
     open:  true,
-    title: `確認切換「${region}」任務模式？`,
-    body:  `${region}：「${REGION_MODE_LABELS[oldMode]}」&nbsp;→&nbsp;<b style="color:var(--accent)">${REGION_MODE_LABELS[newMode]}</b>`,
+    title: `確認切換「${label}」任務模式？`,
+    body:  `${label}：「${REGION_MODE_LABELS[oldMode]}」&nbsp;→&nbsp;<b style="color:var(--accent)">${REGION_MODE_LABELS[newMode]}</b>`,
   }
 }
 
@@ -132,8 +153,9 @@ function onConfirm(reason) {
         : `已更新「${label}」：${oldValue.toLocaleString()} → ${Number(newValue).toLocaleString()} ${unit}・已留跡`
     )
   } else {
-    store.updateRegionMode(c.region, c.newMode, reason)
-    toast.success(`已更新「${c.region}」模式：${REGION_MODE_LABELS[c.oldMode]} → ${REGION_MODE_LABELS[c.newMode]}・已留跡`)
+    store.updateRegionMode(c.adminAreaCode, c.eventType, c.newMode)
+    const label = `${c.adminAreaCode} · ${EVENT_TYPE_LABELS[c.eventType] ?? c.eventType}`
+    toast.success(`已更新「${label}」模式：${REGION_MODE_LABELS[c.oldMode]} → ${REGION_MODE_LABELS[c.newMode]}・已留跡`)
   }
 
   dialog.value.open   = false

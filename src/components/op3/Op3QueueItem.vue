@@ -2,10 +2,10 @@
   <li :class="{ sel: selected }" @click="$emit('select', item.id)">
     <div class="q-row1">
       <span class="aid">{{ item.id }}</span>
-      <StatusBadge class="q-badge" :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANTS[item.status]" />
+      <StatusBadge class="q-badge" :label="STATUS_LABELS[item.state]" :variant="STATUS_VARIANTS[item.state]" />
     </div>
     <div class="q-row2">
-      <span>{{ item.name }}</span>
+      <span>{{ item.qualLabel }}</span>
       <span class="mono">{{ item.submittedAt }}</span>
     </div>
   </li>
@@ -20,6 +20,7 @@ defineProps({
 })
 defineEmits(['select'])
 
+// TODO(後端): state enum 值未在 OpenAPI 中定義，以下 key 為前端推測值，需後端以 enum 明確定義
 const STATUS_LABELS = {
   pending:          '待審核',
   approved_pending: '已核准待綁定',

@@ -10,39 +10,44 @@
     <!-- 身分列 -->
     <div class="identity-bar">
       <span class="iid">{{ inf.id }}</span>
-      <StatusBadge :label="STATUS_LABELS[inf.status]" :variant="STATUS_VARIANTS[inf.status]" />
-      <span v-if="inf.status === 'suspended'" class="suspended-note">帳號停權中，不可接任務</span>
+      <StatusBadge :label="STATUS_LABELS[inf.state]" :variant="STATUS_VARIANTS[inf.state]" />
+      <span v-if="inf.state === 'suspended'" class="suspended-note">帳號停權中，不可接任務</span>
       <RouterLink to="/op4" class="back-search">← 返回搜尋</RouterLink>
     </div>
 
     <!-- 管理動作 -->
     <ActionBar v-if="canManage">
-      <template v-if="inf.status === 'active'">
+      <template v-if="inf.state === 'active'">
         <button class="btn warn" @click="openActionDialog('suspend')">停權</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
       </template>
-      <template v-else-if="inf.status === 'suspended'">
+      <template v-else-if="inf.state === 'suspended'">
         <button class="btn primary" @click="openActionDialog('reinstate')">恢復帳號</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
       </template>
     </ActionBar>
 
     <!-- 基本資料 -->
+    <!-- TODO(後端): InformantProfileResponse 不含個資明文，以下欄位待後端補充個資摘要端點後恢復 -->
     <InfoCard title="基本資料">
-      <KeyValue label="姓名">
+      <KeyValue v-if="inf.name" label="姓名">
         <MaskField ref="nameRef" :value="inf.name" masked-text="●●●" @unmask="onUnmask('name')" />
       </KeyValue>
-      <KeyValue label="手機末碼">
+      <KeyValue v-else label="姓名" value="待補充（profile endpoint 不含個資明文）" />
+      <KeyValue v-if="inf.phoneSuffix" label="手機末碼">
         <MaskField ref="phoneRef" :value="`**** ${inf.phoneSuffix}`" masked-text="●●●●" @unmask="onUnmask('phone')" />
       </KeyValue>
-      <KeyValue label="身分證字號">
+      <KeyValue v-else label="手機末碼" value="待補充" />
+      <KeyValue v-if="inf.idSuffix" label="身分證字號">
         <MaskField ref="idRef" :value="`***-***-${inf.idSuffix}`" masked-text="●●●●" @unmask="onUnmask('id')" />
       </KeyValue>
-      <KeyValue label="收款帳戶">
+      <KeyValue v-else label="身分證字號" value="待補充" />
+      <KeyValue v-if="inf.bankAccount" label="收款帳戶">
         <MaskField ref="bankRef" :value="`****-****-****-${inf.bankAccount}`" masked-text="●●●●" @unmask="onUnmask('bank')" />
       </KeyValue>
-      <KeyValue label="服務區域"  :value="inf.zone" />
-      <KeyValue label="加入日期"  :value="inf.joinedAt" mono />
+      <KeyValue v-else label="收款帳戶" value="待補充" />
+      <KeyValue label="服務區域"  :value="inf.zone || '待補充'" />
+      <KeyValue label="加入日期"  :value="inf.joinedAt || '待補充'" mono />
     </InfoCard>
 
     <!-- 審核歷程 -->
@@ -99,22 +104,26 @@
 
     <!-- 任務摘要 -->
     <InfoCard title="任務摘要（本月）">
-      <KeyValue label="接單數"   :value="`${inf.taskSummary.monthlyCount} 件`" mono />
-      <KeyValue label="完成率"   :value="inf.taskSummary.completionRate ? `${inf.taskSummary.completionRate}%` : '—'" mono />
-      <KeyValue label="棄單次數" :value="`${inf.taskSummary.abandonCount} 次`" mono />
-      <KeyValue label="抽查結果" :value="inf.taskSummary.auditResult || '無紀錄'" mono />
+      <template v-if="inf.taskSummary">
+        <KeyValue label="接單數"   :value="`${inf.taskSummary.monthlyCount} 件`" mono />
+        <KeyValue label="完成率"   :value="inf.taskSummary.completionRate ? `${inf.taskSummary.completionRate}%` : '—'" mono />
+        <KeyValue label="棄單次數" :value="`${inf.taskSummary.abandonCount} 次`" mono />
+        <KeyValue label="抽查結果" :value="inf.taskSummary.auditResult || '無紀錄'" mono />
+      </template>
+      <p v-else class="empty-note">待後端補充（缺口 #22）</p>
     </InfoCard>
 
     <!-- 帳本摘要 -->
+    <!-- TODO(後端): InformantProfileResponse 不含 balance，等後端補充端點（缺口 #12） -->
     <InfoCard title="帳本摘要">
       <div class="big-num-row">
         <div class="big-num">
-          <span class="num accent">{{ inf.balance.redeemable.toLocaleString() }}</span>
+          <span class="num accent">{{ inf.balance.available.toLocaleString() }}</span>
           <small>可兌換積分</small>
         </div>
       </div>
-      <KeyValue label="凍結中"   :value="inf.balance.frozen.toLocaleString()" mono />
-      <KeyValue label="本月累積" :value="inf.balance.monthlyEarned.toLocaleString()" mono />
+      <KeyValue label="凍結中" :value="inf.balance.frozen.toLocaleString()" mono />
+      <KeyValue label="遞延中" :value="inf.balance.deferred.toLocaleString()" mono />
       <RouterLink :to="`/op9?gid=${inf.id}`" class="ledger-link">→ 詳細帳本（OP-9）</RouterLink>
     </InfoCard>
 
@@ -163,7 +172,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useInformantsStore } from '../../stores/informants'
 import { useToastStore }      from '../../stores/toast'
 import StatusBadge    from '../shared/StatusBadge.vue'
@@ -184,6 +193,9 @@ const toast = useToastStore()
 
 const inf = computed(() => store.getById(props.informantId))
 
+onMounted(() => store.fetchProfile(props.informantId))
+
+// TODO(後端): state enum 值未在 OpenAPI 中定義，以下 key 為前端推測值，需後端以 enum 明確定義
 const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中', removed: '除名待結清', cleared: '已結清' }
 const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait',  removed: 'danger',    cleared: 'danger'  }
 
@@ -199,7 +211,7 @@ const reviewEntries = computed(() =>
 
 // 管理動作
 const canManage = computed(() =>
-  inf.value && !['reviewing', 'removed', 'cleared'].includes(inf.value.status)
+  inf.value && !['reviewing', 'removed', 'cleared'].includes(inf.value.state)
 )
 
 const SUSPEND_REASONS = [
@@ -245,13 +257,18 @@ function openActionDialog(action) {
   }
 }
 
-function onActionConfirm(reason) {
+async function onActionConfirm(reason) {
   const { action } = actionDialog.value
-  if (action === 'suspend')   store.suspend(props.informantId, reason)
-  if (action === 'reinstate') store.reinstate(props.informantId, reason)
-  if (action === 'remove')    store.remove(props.informantId, reason)
-  actionDialog.value.open = false
-  toast.success('操作已完成・已留跡')
+  try {
+    if (action === 'suspend')   await store.suspend(props.informantId, reason)
+    if (action === 'reinstate') await store.reinstate(props.informantId, reason)
+    if (action === 'remove')    await store.remove(props.informantId, reason)
+    toast.success('操作已完成・已留跡')
+  } catch (err) {
+    toast.error(err?.response?.data?.message ?? '操作失敗，請重試')
+  } finally {
+    actionDialog.value.open = false
+  }
 }
 
 // 信譽分調整
@@ -259,11 +276,15 @@ const showRepForm = ref(false)
 const repDelta    = ref(0)
 const repReason   = ref('')
 
-function submitRepAdj() {
+async function submitRepAdj() {
   if (!repDelta.value || !repReason.value) return
-  store.adjustReputation(props.informantId, repDelta.value, repReason.value)
-  toast.success(`信譽分已調整 ${repDelta.value > 0 ? '+' : ''}${repDelta.value}・已留跡`)
-  cancelRepForm()
+  try {
+    await store.adjustReputation(props.informantId, repDelta.value, repReason.value)
+    toast.success(`信譽分已調整 ${repDelta.value > 0 ? '+' : ''}${repDelta.value}・已留跡`)
+    cancelRepForm()
+  } catch (err) {
+    toast.error(err?.response?.data?.message ?? '調整失敗，請重試')
+  }
 }
 
 function cancelRepForm() {

@@ -88,8 +88,8 @@
 </template>
 
 <script setup>
-import { ref }         from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref, onMounted } from 'vue'
+import { storeToRefs }    from 'pinia'
 import { useTicketsStore, TICKET_TYPES, FILTERS } from '../stores/tickets'
 import { useToastStore } from '../stores/toast'
 import OpsLayout     from '../components/layout/OpsLayout.vue'
@@ -103,6 +103,8 @@ const store = useTicketsStore()
 const toast = useToastStore()
 const { filteredTickets, selectedId, filterStatus } = storeToRefs(store)
 
+onMounted(() => store.load())
+
 const showModal = ref(false)
 const draft     = ref({ type: '一般客服', description: '', relatedEventId: '', relatedInformantId: '' })
 
@@ -115,14 +117,18 @@ function closeModal() {
   showModal.value = false
 }
 
-function submitNewTicket() {
+async function submitNewTicket() {
   if (!draft.value.description.trim()) {
     toast.info('請填寫工單說明')
     return
   }
-  store.addTicket({ ...draft.value })
-  toast.success('工單已建立・已留跡')
-  showModal.value = false
+  try {
+    await store.addTicket({ ...draft.value })
+    toast.success('工單已建立・已留跡')
+    showModal.value = false
+  } catch (err) {
+    toast.error('建立工單失敗，請稍後重試')
+  }
 }
 </script>
 

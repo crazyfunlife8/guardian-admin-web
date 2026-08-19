@@ -31,6 +31,7 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppealsStore } from '../stores/appeals'
 import OpsLayout    from '../components/layout/OpsLayout.vue'
@@ -43,10 +44,13 @@ import Toast        from '../components/shared/Toast.vue'
 const store = useAppealsStore()
 const { filteredAppeals, selectedId, filterStatus } = storeToRefs(store)
 
+// 對應 SupportTicketStatus enum: Open / InProgress / Resolved
 const FILTERS = [
-  { label: '待處理', key: 'pending' },
-  { label: '處理中', key: 'investigating' },
-  { label: '已結案', key: 'closed' },
+  { label: '待處理', key: 'Open' },
+  { label: '調查中', key: 'InProgress' },
+  { label: '已結案', key: 'Resolved' },
   { label: '全部',   key: 'all' },
 ]
+
+onMounted(() => store.load())
 </script>

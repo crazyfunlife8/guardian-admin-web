@@ -1,86 +1,101 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import client from '../api/client'
 
-// eventType: inspection | accident | construction | control
-// status: unverified | verified | cleared
-const MOCK_EVENTS = [
-  {
-    id: 'E-30771', type: 'inspection', status: 'unverified',
-    road: '環河南路二段（北向）', source: '用戶反饋',
-    reportedAgo: '3 分鐘前', ttlMin: 41, taskStatus: '廣播中',
-    lat: 25.0312, lng: 121.5012,
-    history: [
-      { time: '22:44', text: '建立（用戶反饋・未確認）' },
-      { time: '22:45', text: '驗證任務廣播（半徑 2 檔・系統）' },
-    ],
-  },
-  {
-    id: 'E-30769', type: 'inspection', status: 'verified',
-    road: '堤頂大道（南向）', source: '情報網',
-    reportedAgo: '18 分鐘前', ttlMin: 26, taskStatus: '已接',
-    lat: 25.0840, lng: 121.5742,
-    history: [
-      { time: '22:30', text: '建立（情報網・未確認）' },
-      { time: '22:32', text: '驗證任務廣播' },
-      { time: '22:33', text: '情報員 GI-0042 接單・鎖定 15 分' },
-      { time: '22:35', text: '升已驗證' },
-    ],
-  },
-  {
-    id: 'E-30768', type: 'accident', status: 'verified',
-    road: '市民高架（東向）', source: '感測',
-    reportedAgo: '21 分鐘前', ttlMin: 39, taskStatus: null,
-    lat: 25.0478, lng: 121.5435,
-    history: [
-      { time: '22:26', text: '建立（感測・未確認）' },
-      { time: '22:27', text: '感測佐證印證・升已驗證' },
-    ],
-  },
-  {
-    id: 'E-30755', type: 'construction', status: 'verified',
-    road: '重慶北路三段', source: '合作通報',
-    reportedAgo: '2 小時前', ttlMin: 118, taskStatus: null,
-    lat: 25.0718, lng: 121.5112,
-    history: [
-      { time: '20:42', text: '建立（合作通報・已驗證）' },
-    ],
-  },
-  {
-    id: 'E-30760', type: 'control', status: 'unverified',
-    road: '基隆路一段', source: '用戶反饋',
-    reportedAgo: '55 分鐘前', ttlMin: 5, taskStatus: '逾時',
-    lat: 25.0330, lng: 121.5535,
-    history: [
-      { time: '21:52', text: '建立（用戶反饋・未確認）' },
-      { time: '21:54', text: '驗證任務廣播' },
-      { time: '22:09', text: '逾時無人接・半徑放大第 1 檔' },
-      { time: '22:24', text: '逾時無人接・半徑放大第 2 檔' },
-    ],
-  },
-]
+// ── API enum → display label ────────────────────────────────────────────────
+export const TYPE_LABELS = {
+  Checkpoint:   '臨時路檢',
+  Accident:     '事故',
+  Construction: '施工',
+  Control:      '管制',
+  Flooding:     '積水',
+}
 
+export const STATUS_LABELS = {
+  Unconfirmed: '未確認',
+  Verified:    '已驗證',
+  Expired:     '已過期',
+  Cleared:     '已解除',
+  FalseReport: '誤報',
+}
+
+// ── EventCard / OP-2 action → API toStatus ─────────────────────────────────
+const ACTION_TO_STATUS = {
+  confirm:        'Verified',
+  'false-report': 'FalseReport',
+  takedown:       'FalseReport',
+  cleared:        'Cleared',
+  resolve:        'Cleared',
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+function computeAgo(isoStr) {
+  const mins = Math.floor((Date.now() - new Date(isoStr).getTime()) / 60000)
+  if (mins < 1) return '剛剛'
+  if (mins < 60) return `${mins} 分鐘前`
+  const hrs = Math.floor(mins / 60)
+  return `${hrs} 小時前`
+}
+
+function computeTtlMin(isoStr) {
+  if (!isoStr) return null
+  const mins = Math.round((new Date(isoStr).getTime() - Date.now()) / 60000)
+  return mins > 0 ? mins : 0
+}
+
+function formatTime(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':')
+}
+
+// Map API event to internal shape expected by components
+function mapEvent(e) {
+  return {
+    id:          String(e.id),
+    type:        e.type,
+    status:      e.status,
+    lat:         e.lat,
+    lng:         e.lng,
+    road:        e.road ?? e.roadName ?? '',
+    source:      e.source ?? '',
+    direction:   e.direction ?? null,
+    reportedAgo: computeAgo(e.reportedAt ?? e.createdAt ?? e.at),
+    ttlMin:      computeTtlMin(e.ttlExpiresAt),
+    taskStatus:  e.taskStatus ?? null,
+    history: (e.history ?? []).map(h => ({
+      time: formatTime(h.changedAt ?? h.time),
+      text: h.basis ?? h.text ?? '',
+    })),
+    // keep raw timestamps for refresh
+    _reportedAt:  e.reportedAt ?? e.createdAt ?? e.at,
+    _ttlExpiresAt: e.ttlExpiresAt,
+  }
+}
+
+// ── store ───────────────────────────────────────────────────────────────────
 export const useEventsStore = defineStore('events', () => {
-  const events = ref([...MOCK_EVENTS])
-  const selectedId = ref(null)
-  const filters = ref({ types: [], statuses: [], sources: [] })
+  const events      = ref([])
+  const selectedId  = ref(null)
+  const clickPos    = ref(null)
+  const filters     = ref({ types: [], statuses: [], sources: [] })
+  const loading     = ref(false)
+  let   _mapCursor  = null
 
+  // ── computed ──────────────────────────────────────────────────────────────
   const selectedEvent = computed(() =>
     events.value.find(e => e.id === selectedId.value) ?? null
   )
 
-  const filteredEvents = computed(() => {
-    return events.value.filter(e => {
-      if (filters.value.types.length && !filters.value.types.includes(e.type)) return false
+  const filteredEvents = computed(() =>
+    events.value.filter(e => {
+      if (filters.value.types.length    && !filters.value.types.includes(e.type))      return false
       if (filters.value.statuses.length && !filters.value.statuses.includes(e.status)) return false
-      if (filters.value.sources.length && !filters.value.sources.includes(e.source)) return false
+      if (filters.value.sources.length  && !filters.value.sources.includes(e.source))  return false
       return true
     })
-  })
-
-  function select(id) { selectedId.value = selectedId.value === id ? null : id }
-  function clearSelection() { selectedId.value = null }
-  function setFilter(key, values) { filters.value[key] = values }
-  function clearFilters() { filters.value = { types: [], statuses: [], sources: [] } }
+  )
 
   const hasFilters = computed(() =>
     filters.value.types.length + filters.value.statuses.length + filters.value.sources.length > 0
@@ -88,38 +103,86 @@ export const useEventsStore = defineStore('events', () => {
 
   const activeFilterLabel = computed(() => {
     const parts = []
-    if (filters.value.types.length) parts.push('類型＝' + filters.value.types.join('、'))
+    if (filters.value.types.length)    parts.push('類型＝' + filters.value.types.join('、'))
     if (filters.value.statuses.length) parts.push('狀態＝' + filters.value.statuses.join('、'))
-    if (filters.value.sources.length) parts.push('來源＝' + filters.value.sources.join('、'))
+    if (filters.value.sources.length)  parts.push('來源＝' + filters.value.sources.join('、'))
     return parts.join('・')
   })
 
-  function getById(id) {
-    return events.value.find(e => e.id === id) ?? null
+  // ── API calls ─────────────────────────────────────────────────────────────
+  async function loadMap() {
+    loading.value = true
+    try {
+      const params = _mapCursor ? { since: _mapCursor } : {}
+      const { data } = await client.get('/api/backend/dashboard/map', { params })
+      _mapCursor = data.cursor
+
+      const incoming = (data.events ?? []).map(mapEvent)
+      // Merge: update existing or push new
+      incoming.forEach(ev => {
+        const idx = events.value.findIndex(e => e.id === ev.id)
+        if (idx >= 0) events.value[idx] = ev
+        else events.value.push(ev)
+      })
+    } catch (err) {
+      console.error('loadMap failed', err)
+    } finally {
+      loading.value = false
+    }
   }
 
-  function applyEventAction(id, action, reason) {
+  // ── actions ───────────────────────────────────────────────────────────────
+  function select(id) {
+    selectedId.value = selectedId.value === id ? null : id
+  }
+  function clearSelection() { selectedId.value = null; clickPos.value = null }
+  function setClickPos(pos) { clickPos.value = pos }
+  function setFilter(key, values) { filters.value[key] = values }
+  function clearFilters() { filters.value = { types: [], statuses: [], sources: [] } }
+  function getById(id) { return events.value.find(e => e.id === id) ?? null }
+
+  async function fetchEvent(id) {
+    try {
+      const { data } = await client.get(`/api/events/${id}`)
+      const ev = mapEvent(data)
+      const idx = events.value.findIndex(e => e.id === ev.id)
+      if (idx >= 0) events.value[idx] = ev
+      else events.value.push(ev)
+    } catch (err) {
+      console.error('fetchEvent failed', err)
+    }
+  }
+
+  async function applyEventAction(id, action, basis) {
     const ev = events.value.find(e => e.id === id)
     if (!ev) return
-    const now = new Date()
-    const t = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join(':')
-    const actor = 'OP-07'
 
-    const TRANSITIONS = {
-      confirm:  { from: ['unverified'],          to: 'verified',  text: '人工確認為真' },
-      takedown: { from: ['unverified'],          to: 'cleared',   text: '誤報下架' },
-      resolve:  { from: ['verified'],            to: 'cleared',   text: '標記已解除' },
-      extend:   { from: ['unverified','verified'], to: null,      text: 'TTL 延長 30 分' },
-      dispatch: { from: ['unverified','verified'], to: null,      text: '轉內部派遣' },
+    if (action === 'dispatch') {
+      await client.post(`/api/backend/events/${id}/dispatch`, { note: basis })
+      return
     }
-    const tr = TRANSITIONS[action]
-    if (!tr || !tr.from.includes(ev.status)) return
 
-    if (tr.to) ev.status = tr.to
-    if (action === 'extend') ev.ttlMin = (ev.ttlMin ?? 0) + 30
-    ev.history.push({ time: t, text: `${tr.text}（依據：${reason}）`, actor, done: true })
+    if (action === 'extend') {
+      await client.post(`/api/backend/events/${id}/extend-ttl`, { minutes: 30 })
+      await fetchEvent(id)
+      return
+    }
+
+    const toStatus = ACTION_TO_STATUS[action]
+    if (!toStatus) return
+
+    const { data } = await client.post(`/api/events/${id}/status`, { toStatus, basis })
+    ev.status = data.status
+    ev.history = (data.history ?? []).map(h => ({
+      time: formatTime(h.changedAt ?? h.time),
+      text: h.basis ?? h.text ?? '',
+    }))
   }
 
-  return { events, selectedId, selectedEvent, filteredEvents, filters, hasFilters, activeFilterLabel,
-           select, clearSelection, setFilter, clearFilters, getById, applyEventAction }
+  return {
+    events, selectedId, clickPos, loading,
+    selectedEvent, filteredEvents, filters, hasFilters, activeFilterLabel,
+    select, clearSelection, setClickPos, setFilter, clearFilters, getById,
+    loadMap, fetchEvent, applyEventAction,
+  }
 })

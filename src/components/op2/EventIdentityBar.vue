@@ -31,17 +31,21 @@
 import { computed } from 'vue'
 import MarkerIcon  from '../op1/MarkerIcon.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
+import { TYPE_LABELS, STATUS_LABELS } from '../../stores/events'
 
 const props = defineProps({ event: { type: Object, required: true } })
 
-const TYPE_LABELS   = { inspection: '臨時路檢', accident: '事故', construction: '施工', control: '管制' }
-const STATUS_LABELS = { unverified: '未確認', verified: '已驗證', cleared: '已終結' }
-
 const statusVariant = computed(() => ({
-  unverified: 'wait', verified: 'ok', cleared: 'zero',
+  Unconfirmed: 'wait',
+  Verified:    'ok',
+  Cleared:     'zero',
+  Expired:     'zero',
+  FalseReport: 'zero',
 }[props.event.status] ?? 'zero'))
 
-const isTerminated = computed(() => props.event.status === 'cleared')
+const isTerminated = computed(() =>
+  ['Cleared', 'FalseReport', 'Expired'].includes(props.event.status)
+)
 </script>
 
 <style scoped>

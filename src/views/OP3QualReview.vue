@@ -31,6 +31,7 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useReviewStore } from '../stores/review'
 import OpsLayout    from '../components/layout/OpsLayout.vue'
@@ -42,6 +43,8 @@ import Toast        from '../components/shared/Toast.vue'
 
 const store = useReviewStore()
 const { filteredApps, selectedId, filterStatus } = storeToRefs(store)
+
+onMounted(() => store.load())
 
 const FILTERS = [
   { label: '待審核',     key: 'pending'          },

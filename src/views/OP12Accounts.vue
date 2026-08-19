@@ -34,17 +34,17 @@
                 <!-- 帳號列 -->
                 <div class="acc-row" :class="{ 'row-active': accEditingId === acc.id }">
                   <span class="mono acc-id">{{ acc.id }}</span>
-                  <span class="acc-name">{{ acc.displayName }}</span>
+                  <span class="acc-name">{{ acc.username }}</span>
                   <span class="role-chip" :class="`role-${acc.role}`">
                     {{ ROLE_LABELS[acc.role] }}
                   </span>
                   <span
                     class="status-dot"
-                    :class="acc.status === 'active' ? 'dot-active' : 'dot-inactive'"
-                    :title="acc.status === 'active' ? '啟用' : '停用'"
+                    :class="acc.status === 'Active' ? 'dot-active' : 'dot-inactive'"
+                    :title="acc.status === 'Active' ? '啟用' : '停用'"
                   ></span>
-                  <span class="status-text" :class="acc.status === 'active' ? 'text-ok' : 'text-dim'">
-                    {{ acc.status === 'active' ? '啟用' : '停用' }}
+                  <span class="status-text" :class="acc.status === 'Active' ? 'text-ok' : 'text-dim'">
+                    {{ acc.status === 'Active' ? '啟用' : '停用' }}
                   </span>
                   <span class="created-at">加入 {{ acc.createdAt }}</span>
                   <button
@@ -63,7 +63,7 @@
                 <div v-if="accEditingId === acc.id" class="inline-form">
                   <div class="form-row">
                     <label class="form-label">顯示名稱</label>
-                    <input v-model="accDraft.displayName" class="form-input" type="text" />
+                    <input v-model="accDraft.username" class="form-input" type="text" />
                   </div>
                   <div class="form-row">
                     <label class="form-label">角色</label>
@@ -76,8 +76,8 @@
                   <div class="form-row">
                     <label class="form-label">狀態</label>
                     <select v-model="accDraft.status" class="form-select">
-                      <option value="active">啟用</option>
-                      <option value="inactive">停用</option>
+                      <option value="Active">啟用</option>
+                      <option value="Disabled">停用</option>
                     </select>
                   </div>
                   <div class="form-actions">
@@ -99,7 +99,7 @@
                 <div class="form-row">
                   <label class="form-label">顯示名稱</label>
                   <input
-                    v-model="newAccDraft.displayName"
+                    v-model="newAccDraft.username"
                     class="form-input"
                     type="text"
                     placeholder="輸入顯示名稱"
@@ -206,7 +206,7 @@
                     </span>
                   </td>
                   <td class="mono target-col">{{ row.target }}</td>
-                  <td class="reason-col">{{ row.reason }}</td>
+                  <td class="reason-col">{{ row.detail }}</td>
                   <td class="mono ip-col">{{ row.ip }}</td>
                 </tr>
               </tbody>
@@ -236,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref }           from 'vue'
+import { ref, onMounted } from 'vue'
 import { storeToRefs }   from 'pinia'
 import {
   useAccountsStore,
@@ -251,27 +251,32 @@ const store = useAccountsStore()
 const toast = useToastStore()
 const { adminAccounts, filterState, filteredLog } = storeToRefs(store)
 
+onMounted(() => {
+  store.loadAccounts()
+  store.loadAuditLog()
+})
+
 const activeTab = ref('perms')
 
 /* ── 帳號編輯 ── */
 const accEditingId = ref(null)
-const accDraft     = ref({ displayName: '', role: 'ops', status: 'active' })
+const accDraft     = ref({ username: '', role: 'Operator', status: 'Active' })
 
 function startAccEdit(acc) {
   addingNew.value    = false
   accEditingId.value = acc.id
-  accDraft.value     = { displayName: acc.displayName, role: acc.role, status: acc.status }
+  accDraft.value     = { username: acc.username, role: acc.role, status: acc.status }
 }
 
 /* ── 新增帳號 ── */
 const addingNew    = ref(false)
-const newAccDraft  = ref({ displayName: '', role: 'ops', password: '' })
+const newAccDraft  = ref({ username: '', role: 'Operator', password: '' })
 const showPw       = ref(false)
 
 function startAddNew() {
   accEditingId.value  = null
   addingNew.value     = true
-  newAccDraft.value   = { displayName: '', role: 'ops', password: '' }
+  newAccDraft.value   = { username: '', role: 'Operator', password: '' }
   showPw.value        = false
 }
 
@@ -291,19 +296,19 @@ function openDialog(op, opts) {
 }
 
 function requestAccUpdate(id) {
-  if (!accDraft.value.displayName.trim()) { toast.info('顯示名稱不可為空'); return }
+  if (!accDraft.value.username.trim()) { toast.info('帳號名稱不可為空'); return }
   openDialog(
     { type: 'acc-update', id, data: { ...accDraft.value } },
-    { title: '確認修改帳號', body: `修改帳號 <b>${id}</b> 的設定（角色：${ROLE_LABELS[accDraft.value.role]}、狀態：${accDraft.value.status === 'active' ? '啟用' : '停用'}）`, reasons: ACC_REASONS, extra: '' },
+    { title: '確認修改帳號', body: `修改帳號 <b>${id}</b> 的設定（角色：${ROLE_LABELS[accDraft.value.role]}、狀態：${accDraft.value.status === 'Active' ? '啟用' : '停用'}）`, reasons: ACC_REASONS, extra: '' },
   )
 }
 
 function requestAccAdd() {
-  if (!newAccDraft.value.displayName.trim()) { toast.info('顯示名稱不可為空'); return }
-  if (!newAccDraft.value.password.trim())    { toast.info('初始密碼不可為空'); return }
+  if (!newAccDraft.value.username.trim()) { toast.info('帳號名稱不可為空'); return }
+  if (!newAccDraft.value.password.trim()) { toast.info('初始密碼不可為空'); return }
   openDialog(
     { type: 'acc-add', data: { ...newAccDraft.value } },
-    { title: '確認新增帳號', body: `新增帳號「${newAccDraft.value.displayName}」，角色：${ROLE_LABELS[newAccDraft.value.role]}`, reasons: ACC_REASONS, extra: '' },
+    { title: '確認新增帳號', body: `新增帳號「${newAccDraft.value.username}」，角色：${ROLE_LABELS[newAccDraft.value.role]}`, reasons: ACC_REASONS, extra: '' },
   )
 }
 
@@ -318,7 +323,7 @@ function onConfirm(reason) {
       break
     case 'acc-add':
       store.addAccount({ ...op.data, reason })
-      toast.success(`已新增帳號「${op.data.displayName}」・已留跡`)
+      toast.success(`已新增帳號「${op.data.username}」・已留跡`)
       addingNew.value = false
       break
   }
@@ -345,7 +350,7 @@ function exportCsv() {
     { h: '操作者ID', k: 'operatorId' },
     { h: '動作類型', k: 'actionType' },
     { h: '對象',     k: 'target' },
-    { h: '依據',     k: 'reason' },
+    { h: '依據',     k: 'detail' },
     { h: 'IP',       k: 'ip' },
   ]
   const header = cols.map(c => c.h).join(',')
@@ -445,8 +450,8 @@ function exportCsv() {
   border: 1px solid var(--line);
   color: var(--text-secondary);
 }
-.role-chip.role-admin { color: var(--danger); border-color: var(--danger); }
-.role-chip.role-ops   { color: var(--accent); border-color: var(--accent); }
+.role-chip.role-Admin    { color: var(--danger); border-color: var(--danger); }
+.role-chip.role-Operator { color: var(--accent); border-color: var(--accent); }
 
 .status-dot {
   width: 7px; height: 7px;

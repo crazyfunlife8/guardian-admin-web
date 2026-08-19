@@ -18,52 +18,56 @@
       <!-- ① 供給側報表（O-11）────────────────────────────────── -->
       <div v-show="activeTab === 'supply'" class="tab-pane">
         <div class="filter-bar">
-          <span class="filter-label">服務區域</span>
-          <select v-model="zoneFilter" class="filter-select">
-            <option v-for="z in ZONES" :key="z" :value="z">{{ z }}</option>
-          </select>
-          <button class="clear-btn" @click="zoneFilter = '全部'">清除</button>
+          <span class="filter-label">期間</span>
+          <input v-model="supplyFrom" type="date" class="filter-input date-input" />
+          <span class="filter-label">—</span>
+          <input v-model="supplyTo" type="date" class="filter-input date-input" />
+          <button class="clear-btn" @click="reloadSupply">查詢</button>
           <button class="export-btn" @click="exportSupplyCSV">↓ 匯出 CSV</button>
         </div>
 
-        <div class="summary-row">共 <b>{{ filteredSupplyRows.length }}</b> 位情報員</div>
-
-        <div v-if="supplyChart.bars.length" class="chart-section">
-          <div class="chart-title">本月接單量排行</div>
-          <svg :viewBox="`0 0 600 ${supplyChart.svgH}`" class="bar-chart-svg">
-            <line x1="95" x2="95" y1="5" :y2="supplyChart.svgH - 5" class="axis-line" />
-            <g v-for="bar in supplyChart.bars" :key="bar.id">
-              <text :x="90" :y="bar.y + supplyChart.bh * 0.7"
-                class="bar-label" text-anchor="end">{{ bar.id }}</text>
-              <rect :x="95" :y="bar.y" :width="Math.max(bar.w, 2)"
-                :height="supplyChart.bh" class="bar-rect" rx="3" />
-              <text :x="95 + Math.max(bar.w, 2) + 6" :y="bar.y + supplyChart.bh * 0.7"
-                class="bar-value">{{ bar.v }}</text>
-            </g>
-          </svg>
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>情報員 ID</th><th>服務區域</th><th class="right">本月接單</th>
-                <th class="right">完成率</th><th class="right">正確率</th><th class="right">積分入帳</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, i) in filteredSupplyRows" :key="i" :class="{ odd: i % 2 === 1 }">
-                <td class="mono">{{ row.informantId }}</td>
-                <td>{{ row.zone }}</td>
-                <td class="mono right">{{ row.monthlyCount }}</td>
-                <td class="mono right" :class="rateColor(row.completionRate)">{{ row.completionRate }}%</td>
-                <td class="mono right" :class="rateColor(row.accuracyRate)">{{ row.accuracyRate }}%</td>
-                <td class="mono right accent">{{ row.pointsEarned.toLocaleString() }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-if="!filteredSupplyRows.length" class="empty-state">無符合條件的記錄</div>
-        </div>
+        <template v-if="supply">
+          <div class="summary-row">
+            查詢區間：<b>{{ supply.fromUtc?.slice(0, 10) }}</b> — <b>{{ supply.toUtc?.slice(0, 10) }}</b>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ supply.activeInformants }}</div>
+              <div class="kpi-label">活躍情報員</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ supply.tasksCreated }}</div>
+              <div class="kpi-label">建立任務數</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ supply.tasksAccepted }}</div>
+              <div class="kpi-label">接單任務數</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono" :class="rateColor((supply.acceptanceRate ?? 0) * 100)">
+                {{ ((supply.acceptanceRate ?? 0) * 100).toFixed(1) }}%
+              </div>
+              <div class="kpi-label">接受率</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ (supply.avgVerificationLatencyMinutes ?? 0).toFixed(1) }} min</div>
+              <div class="kpi-label">平均核驗延遲</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono accent">{{ (supply.creditTotal ?? 0).toLocaleString() }}</div>
+              <div class="kpi-label">期間積分發放</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ supply.verifiedEventCount }}</div>
+              <div class="kpi-label">已核驗事件數</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-val mono">{{ (supply.costPerIntel ?? 0).toFixed(1) }}</div>
+              <div class="kpi-label">每件情報成本（積分）</div>
+            </div>
+          </div>
+        </template>
+        <div v-else class="empty-state">請選擇期間後按查詢</div>
       </div>
 
       <!-- ② 年度給付彙整（C8）────────────────────────────────── -->
@@ -77,30 +81,28 @@
         </div>
 
         <div class="summary-row">
-          共 <b>{{ filteredPayoutRows.length }}</b> 位情報員・
-          年度總入帳 <b class="accent">{{ totalPayout.toLocaleString() }}</b> 積分
+          共 <b>{{ reportsStore.annualPayoutRows.length }}</b> 位情報員・
+          年度總積分 <b class="accent">{{ totalPayout.toLocaleString() }}</b> 積分
         </div>
 
         <div class="table-wrap">
           <table class="data-table">
             <thead>
               <tr>
-                <th>情報員 ID</th><th>服務區域</th><th class="right">年度接單</th>
-                <th class="right">年度積分入帳</th><th class="right">兌換次數</th><th class="right">年度兌換積分</th>
+                <th>情報員編號</th><th>情報員 ID</th>
+                <th class="right">年度積分合計</th><th class="right">年度接單數</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, i) in filteredPayoutRows" :key="i" :class="{ odd: i % 2 === 1 }">
+              <tr v-for="(row, i) in reportsStore.annualPayoutRows" :key="i" :class="{ odd: i % 2 === 1 }">
+                <td class="mono">{{ row.informantNo }}</td>
                 <td class="mono">{{ row.informantId }}</td>
-                <td>{{ row.zone }}</td>
-                <td class="mono right">{{ row.yearlyCount }}</td>
-                <td class="mono right accent">{{ row.totalEarned.toLocaleString() }}</td>
-                <td class="mono right">{{ row.redeemedCount }}</td>
-                <td class="mono right">{{ row.totalRedeemed.toLocaleString() }}</td>
+                <td class="mono right accent">{{ row.totalPoints.toLocaleString() }}</td>
+                <td class="mono right">{{ row.orderCount }}</td>
               </tr>
             </tbody>
           </table>
-          <div v-if="!filteredPayoutRows.length" class="empty-state">無符合條件的記錄</div>
+          <div v-if="!reportsStore.annualPayoutRows.length" class="empty-state">無符合條件的記錄</div>
         </div>
       </div>
 
@@ -120,8 +122,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useReportsStore, ZONES } from '../stores/reports'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useReportsStore } from '../stores/reports'
 import OpsTopBar from '../components/layout/OpsTopBar.vue'
 import Toast     from '../components/shared/Toast.vue'
 
@@ -135,55 +137,52 @@ const TABS = [
 const activeTab = ref('supply')
 
 // ── ① 供給側報表（O-11）──────────────────────────────────
-const zoneFilter = ref('全部')
+// SupplyReportItem 是聚合統計物件，不是逐情報員列表
+const today         = new Date().toISOString().slice(0, 10)
+const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+const supplyFrom    = ref(thirtyDaysAgo)
+const supplyTo      = ref(today)
 
-const filteredSupplyRows = computed(() => {
-  const rows = reportsStore.informantRows
-  if (zoneFilter.value === '全部') return rows
-  return rows.filter(r => r.zone === zoneFilter.value)
-})
+const supply = computed(() => reportsStore.supplyReport)
 
-function makeBarChart(rows, vKey) {
-  const BH = 22, GAP = 7, Y0 = 12, X0 = 95, X1 = 560
-  if (!rows.length) return { bars: [], svgH: 50, bh: BH }
-  const maxV = Math.max(...rows.map(r => r[vKey])) || 1
-  const bars = rows.map((r, i) => ({
-    y:  Y0 + i * (BH + GAP),
-    w:  (r[vKey] / maxV) * (X1 - X0),
-    id: r.informantId,
-    v:  r[vKey],
-  }))
-  return { bars, svgH: Y0 + rows.length * (BH + GAP) + 10, bh: BH }
+function reloadSupply() {
+  reportsStore.loadSupplyReport(supplyFrom.value, supplyTo.value)
 }
 
-const supplyChart = computed(() => makeBarChart(filteredSupplyRows.value, 'monthlyCount'))
-
 function exportSupplyCSV() {
-  downloadCSV(filteredSupplyRows.value, [
-    { h: '情報員ID', k: 'informantId' }, { h: '服務區域', k: 'zone' },
-    { h: '本月接單', k: 'monthlyCount' }, { h: '完成率%', k: 'completionRate' },
-    { h: '正確率%', k: 'accuracyRate' }, { h: '積分入帳', k: 'pointsEarned' },
-  ], '供給側報表.csv')
+  const s = supply.value
+  if (!s) return
+  const rows = [[
+    s.fromUtc?.slice(0, 10) ?? '', s.toUtc?.slice(0, 10) ?? '',
+    s.activeInformants, s.tasksCreated, s.tasksAccepted,
+    ((s.acceptanceRate ?? 0) * 100).toFixed(1),
+    (s.avgVerificationLatencyMinutes ?? 0).toFixed(1),
+    s.creditTotal, s.verifiedEventCount,
+    (s.costPerIntel ?? 0).toFixed(1),
+  ]]
+  const header = '期間起,期間迄,活躍情報員,建立任務,接單任務,接受率%,平均核驗延遲min,積分發放,核驗事件,每件成本'
+  const body   = rows.map(r => r.join(',')).join('\n')
+  const blob = new Blob(['﻿' + header + '\n' + body], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `供給側報表_${today}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 // ── ② 年度給付彙整（C8）──────────────────────────────────
-const PAYOUT_YEARS = [2025, 2024]
-const payoutYear   = ref(2025)
-
-const filteredPayoutRows = computed(() =>
-  reportsStore.annualPayoutRows.filter(r => r.year === payoutYear.value)
-)
+// AnnualPayoutItem: { informantId, informantNo, totalPoints, orderCount }
+const PAYOUT_YEARS = [new Date().getFullYear(), new Date().getFullYear() - 1]
+const payoutYear   = ref(new Date().getFullYear())
 
 const totalPayout = computed(() =>
-  filteredPayoutRows.value.reduce((s, r) => s + r.totalEarned, 0)
+  reportsStore.annualPayoutRows.reduce((s, r) => s + (r.totalPoints ?? 0), 0)
 )
 
+watch(payoutYear, y => reportsStore.loadAnnualPayout(y))
+
 function exportPayoutCSV() {
-  downloadCSV(filteredPayoutRows.value, [
-    { h: '情報員ID', k: 'informantId' }, { h: '服務區域', k: 'zone' }, { h: '年度', k: 'year' },
-    { h: '年度接單', k: 'yearlyCount' }, { h: '年度積分入帳', k: 'totalEarned' },
-    { h: '兌換次數', k: 'redeemedCount' }, { h: '年度兌換積分', k: 'totalRedeemed' },
-  ], `年度給付彙整_${payoutYear.value}.csv`)
+  reportsStore.downloadAnnualPayoutCsv(payoutYear.value)
 }
 
 // ── 共用工具 ───────────────────────────────────────────────
@@ -193,16 +192,10 @@ function rateColor(v) {
   return 'col-danger'
 }
 
-function downloadCSV(rows, cols, filename) {
-  const header = cols.map(c => c.h).join(',')
-  const body   = rows.map(r => cols.map(c => r[c.k] ?? '').join(',')).join('\n')
-  const blob = new Blob(['﻿' + header + '\n' + body], { type: 'text/csv;charset=utf-8' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
+onMounted(() => {
+  reloadSupply()
+  reportsStore.loadAnnualPayout(payoutYear.value)
+})
 </script>
 
 <style scoped>
@@ -276,7 +269,9 @@ function downloadCSV(rows, cols, filename) {
   transition: border-color .12s;
 }
 .filter-input:focus { border-color: var(--accent); }
-.id-input { font-family: var(--sans); width: 160px; }
+.id-input   { font-family: var(--sans); width: 160px; }
+.date-input { width: 140px; }
+.date-input::-webkit-calendar-picker-indicator { filter: invert(.5); cursor: pointer; }
 
 .filter-select {
   background: var(--bg-panel);
@@ -325,21 +320,23 @@ function downloadCSV(rows, cols, filename) {
 .summary-row b { color: var(--text-primary); }
 .summary-row b.accent { color: var(--accent); }
 
-/* 條形圖 */
-.chart-section {
+/* KPI 卡片格 */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.kpi-card {
   background: var(--bg-panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 14px 16px 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.chart-title    { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
-.bar-chart-svg  { width: 100%; display: block; }
-
-/* SVG 固定色（避免 CSS var 在 SVG attr 的相容問題） */
-.axis-line { stroke: rgba(255,255,255,.12); stroke-width: 1; }
-.bar-rect  { fill: rgba(76,154,255,.3); }
-.bar-label { font-family: monospace; font-size: 11px; fill: #8899AA; }
-.bar-value { font-family: monospace; font-size: 11px; fill: #AABBCC; }
+.kpi-val   { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--text-primary); }
+.kpi-label { font-size: 12px; color: var(--text-secondary); }
 
 /* 資料表 */
 .table-wrap {

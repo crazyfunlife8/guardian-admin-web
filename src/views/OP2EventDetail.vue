@@ -45,13 +45,13 @@
 
       <!-- 4. 動作列 -->
       <ActionBar v-if="!isTerminated">
-        <template v-if="event.status === 'unverified'">
+        <template v-if="event.status === 'Unconfirmed'">
           <button class="btn primary" @click="openDialog('confirm')">確認為真</button>
           <button class="btn"         @click="openDialog('takedown')">誤報下架</button>
           <button class="btn"         @click="openDialog('extend')">延長 TTL ＋30 分</button>
           <button class="btn"         @click="openDialog('dispatch')">轉內部派遣</button>
         </template>
-        <template v-else-if="event.status === 'verified'">
+        <template v-else-if="event.status === 'Verified'">
           <button class="btn primary" @click="openDialog('resolve')">已解除</button>
           <button class="btn"         @click="openDialog('extend')">延長 TTL ＋30 分</button>
           <button class="btn"         @click="openDialog('dispatch')">轉內部派遣</button>
@@ -70,6 +70,7 @@
       :open="dialog.open"
       :title="dialog.title"
       :body="dialog.body"
+      v-bind="dialog.reasons !== undefined ? { reasons: dialog.reasons } : {}"
       @confirm="onConfirm"
       @cancel="dialog.open = false"
     />
@@ -78,10 +79,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute }      from 'vue-router'
 import { useEventsStore } from '../stores/events'
 import { useToastStore }  from '../stores/toast'
+import { TYPE_LABELS, STATUS_LABELS } from '../stores/events'
 import OpsTopBar         from '../components/layout/OpsTopBar.vue'
 import EventIdentityBar  from '../components/op2/EventIdentityBar.vue'
 import StateMachineBar   from '../components/shared/StateMachineBar.vue'
@@ -98,19 +100,25 @@ const toastStore = useToastStore()
 
 const event = computed(() => evStore.getById(route.params.eventId))
 
-const TYPE_LABELS = { inspection: '臨時路檢', accident: '事故', construction: '施工', control: '管制' }
+onMounted(async () => {
+  if (!event.value) await evStore.fetchEvent(route.params.eventId)
+})
 
-const isTerminated = computed(() => event.value?.status === 'cleared')
+const isTerminated = computed(() =>
+  ['Cleared', 'FalseReport', 'Expired'].includes(event.value?.status)
+)
 
 // 事件狀態機步驟
 const steps = computed(() => {
-  const s = event.value?.status ?? 'unverified'
-  const isCleared  = s === 'cleared'
-  const isVerified = s === 'verified'
+  const s = event.value?.status ?? 'Unconfirmed'
+  const isCleared    = ['Cleared', 'FalseReport', 'Expired'].includes(s)
+  const isVerified   = s === 'Verified'
+  const isFalseReport = s === 'FalseReport'
   return [
-    { label: '建立（未確認）', state: 'done',                                    lockAfter: false },
+    { label: '建立（未確認）', state: 'done',                                              lockAfter: false },
     { label: '已驗證',        state: isVerified ? 'now' : (isCleared ? 'done' : 'pending'), lockAfter: true },
-    { label: '已解除',        state: isCleared  ? 'now' : 'pending',             lockAfter: false },
+    { label: isFalseReport ? '誤報下架' : '已解除',
+                              state: isCleared   ? 'now' : 'pending',                      lockAfter: false },
   ]
 })
 
@@ -133,17 +141,29 @@ const DIALOG_CONFIG = {
   dispatch: { title: '確認轉內部派遣？',   body: (e) => `將 ${e.id} 指派專職小隊處理，結果以「內部查核」回寫時間軸。` },
 }
 
-const dialog = ref({ open: false, action: '', title: '', body: '' })
+const NO_REASON_ACTIONS = new Set(['extend', 'dispatch'])
+const dialog = ref({ open: false, action: '', title: '', body: '', reasons: undefined })
 
 function openDialog(action) {
   const cfg = DIALOG_CONFIG[action]
-  dialog.value = { open: true, action, title: cfg.title, body: cfg.body(event.value) }
+  dialog.value = {
+    open: true,
+    action,
+    title: cfg.title,
+    body:  cfg.body(event.value),
+    reasons: NO_REASON_ACTIONS.has(action) ? [] : undefined,
+  }
 }
 
-function onConfirm(reason) {
-  evStore.applyEventAction(event.value.id, dialog.value.action, reason)
-  dialog.value.open = false
-  toastStore.success('已處理・已留跡')
+async function onConfirm(reason) {
+  try {
+    await evStore.applyEventAction(event.value.id, dialog.value.action, reason)
+    toastStore.success('已處理・已留跡')
+  } catch (err) {
+    toastStore.error(err?.response?.data?.message ?? '操作失敗，請重試')
+  } finally {
+    dialog.value.open = false
+  }
 }
 </script>
 

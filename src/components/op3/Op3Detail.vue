@@ -3,33 +3,32 @@
     <!-- 頁頭 -->
     <div class="d-head">
       <h2>{{ app.id }}</h2>
-      <StatusBadge :label="STATUS_LABELS[app.status]" :variant="STATUS_VARIANTS[app.status]" />
+      <StatusBadge :label="STATUS_LABELS[app.state]" :variant="STATUS_VARIANTS[app.state]" />
       <span v-if="isTerminated" class="terminated-note">{{ terminatedNote }}</span>
     </div>
 
     <!-- 狀態機流轉條 -->
     <StateMachineBar :steps="steps" />
 
-    <!-- 申請人資料 -->
+    <!-- 申請人資料（個資欄位來自 ApplicationDetail，需點選才載入） -->
     <InfoCard title="申請人資料">
-      <KeyValue label="姓名"     :value="app.name" />
-      <KeyValue label="手機末碼" :value="`**** ${app.phoneSuffix}`" mono />
-      <KeyValue label="車牌末碼" :value="`*** ${app.plateSuffix}`"  mono />
-      <KeyValue label="服務區域" :value="app.zone" />
+      <KeyValue label="姓名"     :value="app.name || '載入中…'" />
+      <KeyValue label="手機"     :value="app.phone || '載入中…'" mono />
+      <KeyValue label="身分證字號" :value="app.idNo || '載入中…'" mono />
+      <KeyValue label="收款帳戶" :value="app.payoutAccount || '載入中…'" mono />
+      <KeyValue label="電子郵件" :value="app.email || '載入中…'" />
+      <KeyValue label="職業類型" :value="app.qualLabel || app.qualType" />
       <KeyValue label="提交時間" :value="app.submittedAt" mono />
+      <!-- TODO(後端): plateSuffix（車牌末碼）和 zone（服務區域）ApplicationDetail 未定義，已移除 -->
     </InfoCard>
 
     <!-- 動作列（僅 pending 顯示） -->
-    <ActionBar v-if="app.status === 'pending'">
+    <ActionBar v-if="app.state === 'pending'">
       <button class="btn primary" @click="openDialog('approve')">審核通過</button>
       <button class="btn danger"  @click="openDialog('reject')">拒絕申請</button>
     </ActionBar>
 
-    <!-- 審核歷程 -->
-    <StatusTimeline
-      title="審核歷程（每筆動作皆自動留跡）"
-      :entries="timelineEntries"
-    />
+    <StatusTimeline title="審核歷程（每筆動作皆自動留跡）" :entries="timelineEntries" />
 
     <!-- 確認對話框 -->
     <ConfirmDialog
@@ -50,7 +49,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { storeToRefs }   from 'pinia'
-import { useRouter }     from 'vue-router'
 import { useReviewStore } from '../../stores/review'
 import { useToastStore }  from '../../stores/toast'
 import StatusBadge     from '../shared/StatusBadge.vue'
@@ -61,11 +59,11 @@ import ActionBar       from '../shared/ActionBar.vue'
 import StatusTimeline  from '../shared/StatusTimeline.vue'
 import ConfirmDialog   from '../shared/ConfirmDialog.vue'
 
-const router = useRouter()
 const store  = useReviewStore()
 const toast  = useToastStore()
 const { selectedApp: app } = storeToRefs(store)
 
+// TODO(後端): state enum 值未在 OpenAPI 中定義，以下 key 為前端推測值，需後端以 enum 明確定義
 const STATUS_LABELS   = { pending: '待審核', approved_pending: '已核准待綁定', active: '已開通', rejected: '已拒絕' }
 const STATUS_VARIANTS = { pending: 'wait',   approved_pending: 'info',          active: 'ok',      rejected: 'danger' }
 
@@ -83,10 +81,10 @@ const DEFAULT_REASONS = [
   { value: 'other',      label: '其他' },
 ]
 
-const isTerminated = computed(() => app.value?.status !== 'pending')
+const isTerminated = computed(() => app.value?.state !== 'pending')
 
 const terminatedNote = computed(() => {
-  switch (app.value?.status) {
+  switch (app.value?.state) {
     case 'approved_pending': return '已核准・等待申請人完成四項必綁'
     case 'active':           return '已開通・申請流程已完結'
     case 'rejected':         return '已拒絕・此申請已終結'
@@ -95,7 +93,7 @@ const terminatedNote = computed(() => {
 })
 
 const steps = computed(() => {
-  const s = app.value?.status ?? 'pending'
+  const s = app.value?.state ?? 'pending'  // TODO(後端): state enum 值未在 OpenAPI 中定義
   if (s === 'rejected') {
     return [
       { label: '提交申請', state: 'done' },
@@ -116,19 +114,19 @@ const timelineEntries = computed(() =>
     time:  h.time,
     text:  h.text,
     actor: h.actor ?? null,
-    done:  i < arr.length - 1 || isTerminated.value,
+    done:  i < arr.length - 1,
   }))
 )
 
 const DIALOG_CONFIG = {
   approve: {
     title:   '確認審核通過？',
-    body:    (a) => `將 ${a.id}（${a.name}）的資格申請核准。申請人將收到通知，完成四項必綁後系統自動開通。`,
+    body:    (a) => `將申請 ${a.id}（${a.qualLabel || a.qualType}）的資格申請核准。申請人將收到通知，完成四項必綁後系統自動開通。`,
     reasons: DEFAULT_REASONS,
   },
   reject: {
     title:   '確認拒絕申請？',
-    body:    (a) => `將 ${a.id}（${a.name}）的申請拒絕，請選擇拒絕原因。`,
+    body:    (a) => `將申請 ${a.id}（${a.qualLabel || a.qualType}）的申請拒絕，請選擇拒絕原因。`,
     reasons: REJECT_REASONS,
   },
 }
@@ -146,12 +144,14 @@ function openDialog(action) {
   }
 }
 
-function onConfirm(reason) {
-  store.applyReviewAction(app.value.id, dialog.value.action, reason)
-  dialog.value.open = false
-  toast.success('已處理・已留跡')
-  if (dialog.value.action === 'approve') {
-    router.push('/op4')
+async function onConfirm(reason) {
+  try {
+    await store.applyReviewAction(app.value.id, dialog.value.action, reason)
+    toast.success('已處理・已留跡')
+  } catch (err) {
+    toast.error(err?.response?.data?.message ?? '操作失敗，請重試')
+  } finally {
+    dialog.value.open = false
   }
 }
 </script>

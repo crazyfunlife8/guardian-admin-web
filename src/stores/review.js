@@ -1,108 +1,114 @@
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { defineStore } from 'pinia'
+import client from '../api/client'
 
-const TRANSITIONS = {
-  approve: { from: ['pending'], to: 'approved_pending', text: '資格核准' },
-  reject:  { from: ['pending'], to: 'rejected',         text: '審核拒絕' },
+function formatAgo(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+  if (mins < 1)  return '剛剛'
+  if (mins < 60) return `${mins} 分鐘前`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs} 小時前`
+  return `${Math.floor(hrs / 24)} 天前`
+}
+
+// TODO(後端): qualType enum 值若有新增請同步更新此對照表
+const QUAL_LABELS = {
+  motorcycle_courier: '機車外送員',
+}
+
+function mapListItem(d) {
+  return {
+    id:         String(d.id),
+    state:      d.state ?? '',    // TODO(後端): state enum 值未在 OpenAPI 中定義
+    qualType:   d.qualType ?? '',
+    qualLabel:  QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
+    certFileUrl: d.certFileUrl ?? null,
+    submittedAt: formatAgo(d.appliedAt),
+  }
+}
+
+function mapDetail(d) {
+  return {
+    id:            String(d.id),
+    state:         d.state ?? '',   // TODO(後端): state enum 值未在 OpenAPI 中定義
+    name:          d.name ?? '',
+    phone:         d.phone ?? '',
+    idNo:          d.idNo ?? '',
+    payoutAccount: d.payoutAccount ?? '',
+    email:         d.email ?? '',
+    qualType:      d.qualType ?? '',
+    qualLabel:     QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
+    certFileUrl:   d.certFileUrl ?? null,
+    submittedAt:   formatAgo(d.appliedAt),
+    history:       (d.history ?? []).map(h => ({
+      time:  h.time  ?? '',
+      text:  h.text  ?? '',
+      actor: h.actor ?? null,
+    })),
+    // TODO(後端): plateSuffix, zone 欄位 API 未定義（缺口 #18）
+  }
 }
 
 export const useReviewStore = defineStore('review', () => {
-  const applications = ref([
-    {
-      id: 'AP-0001', name: '陳志豪',
-      phoneSuffix: '8847', plateSuffix: 'BD9', zone: '北投／士林',
-      status: 'pending', submittedAt: '07:20',
-      history: [
-        { time: '07:20', text: '申請提交', actor: '系統' },
-        { time: '07:21', text: '進入審核中', actor: '系統' },
-      ],
-    },
-    {
-      id: 'AP-0002', name: '林美玲',
-      phoneSuffix: '3312', plateSuffix: 'AK5', zone: '內湖／南港',
-      status: 'pending', submittedAt: '08:45',
-      history: [
-        { time: '08:45', text: '申請提交', actor: '系統' },
-        { time: '08:46', text: '進入審核中', actor: '系統' },
-      ],
-    },
-    {
-      id: 'AP-0003', name: '王建民',
-      phoneSuffix: '6601', plateSuffix: 'CC2', zone: '信義／大安',
-      status: 'approved_pending', submittedAt: '昨日 16:10',
-      history: [
-        { time: '昨日 16:10', text: '申請提交', actor: '系統' },
-        { time: '昨日 16:11', text: '進入審核中', actor: '系統' },
-        { time: '昨日 17:02', text: '資格核准（內部查核）', actor: '後台 admin' },
-      ],
-    },
-    {
-      id: 'AP-0004', name: '黃怡君',
-      phoneSuffix: '2298', plateSuffix: 'EF8', zone: '萬華／中正',
-      status: 'approved_pending', submittedAt: '昨日 09:30',
-      history: [
-        { time: '昨日 09:30', text: '申請提交', actor: '系統' },
-        { time: '昨日 09:31', text: '進入審核中', actor: '系統' },
-        { time: '昨日 10:15', text: '資格核准（多方反饋）', actor: '後台 admin' },
-      ],
-    },
-    {
-      id: 'AP-0007', name: '吳宗翰',
-      phoneSuffix: '1134', plateSuffix: 'MN7', zone: '大同／中山',
-      status: 'active', submittedAt: '3天前 10:00',
-      history: [
-        { time: '3天前 10:00', text: '申請提交', actor: '系統' },
-        { time: '3天前 10:01', text: '進入審核中', actor: '系統' },
-        { time: '3天前 11:20', text: '資格核准（內部查核）', actor: '後台 admin' },
-        { time: '3天前 14:55', text: '四項必綁完成・帳號自動開通', actor: '系統' },
-      ],
-    },
-    {
-      id: 'AP-0005', name: '李俊宏',
-      phoneSuffix: '7743', plateSuffix: 'GH1', zone: '松山／中山',
-      status: 'rejected', submittedAt: '昨日 14:00',
-      history: [
-        { time: '昨日 14:00', text: '申請提交', actor: '系統' },
-        { time: '昨日 14:01', text: '進入審核中', actor: '系統' },
-        { time: '昨日 15:30', text: '審核拒絕（照片不清晰）', actor: '後台 admin' },
-      ],
-    },
-    {
-      id: 'AP-0006', name: '張雅婷',
-      phoneSuffix: '5591', plateSuffix: 'JK4', zone: '文山／景美',
-      status: 'rejected', submittedAt: '2天前 11:20',
-      history: [
-        { time: '2天前 11:20', text: '申請提交', actor: '系統' },
-        { time: '2天前 11:21', text: '進入審核中', actor: '系統' },
-        { time: '2天前 13:00', text: '審核拒絕（服務區域未開放）', actor: '後台 admin' },
-      ],
-    },
-  ])
-
-  const filterStatus = ref('all')
-  const selectedId   = ref('AP-0001')
+  const applications = ref([])
+  const details      = reactive({})   // id(string) → detail object
+  const filterState  = ref('all')
+  const selectedId   = ref(null)
+  const loading      = ref(false)
 
   const filteredApps = computed(() => {
-    if (filterStatus.value === 'all') return applications.value
-    return applications.value.filter(a => a.status === filterStatus.value)
+    if (filterState.value === 'all') return applications.value
+    return applications.value.filter(a => a.state === filterState.value)
   })
 
-  const selectedApp = computed(() =>
-    applications.value.find(a => a.id === selectedId.value) ?? null
-  )
+  const selectedApp = computed(() => details[selectedId.value] ?? null)
 
-  function setFilter(key) { filterStatus.value = key }
-  function select(id)     { selectedId.value = id }
+  function setFilter(key) { filterState.value = key }
 
-  function applyReviewAction(id, action, reason) {
-    const app = applications.value.find(a => a.id === id)
-    if (!app) return
-    const tr = TRANSITIONS[action]
-    if (!tr || !tr.from.includes(app.status)) return
-    if (tr.to) app.status = tr.to
-    const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-    app.history.push({ time: now, text: `${tr.text}（${reason}）`, actor: '後台人員' })
+  async function select(id) {
+    selectedId.value = id
+    if (id && !details[id]) {
+      try {
+        const { data } = await client.get(`/api/backend/informants/${id}`)
+        details[id] = mapDetail(data)
+      } catch (err) {
+        console.error('fetch application detail failed', err)
+      }
+    }
   }
 
-  return { applications, filterStatus, selectedId, filteredApps, selectedApp, setFilter, select, applyReviewAction }
+  async function load() {
+    loading.value = true
+    try {
+      const { data } = await client.get('/api/backend/informants/applications')
+      applications.value = data.map(mapListItem)
+      if (!selectedId.value && applications.value.length) {
+        select(applications.value[0].id)
+      }
+    } catch (err) {
+      console.error('load applications failed', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function applyReviewAction(id, action, reason) {
+    const url = action === 'approve'
+      ? `/api/backend/informants/${id}/approve`
+      : `/api/backend/informants/${id}/reject`
+    const body = action === 'approve' ? { basis: reason } : { reason }
+    await client.post(url, body)
+    if (details[id]) {
+      details[id].state = action === 'approve' ? 'approved_pending' : 'rejected'
+    }
+    const listItem = applications.value.find(a => a.id === id)
+    if (listItem) listItem.state = action === 'approve' ? 'approved_pending' : 'rejected'
+  }
+
+  return {
+    applications, filterState, selectedId, filteredApps, selectedApp, loading,
+    setFilter, select, load, applyReviewAction,
+  }
 })

@@ -13,21 +13,24 @@
     <!-- 申訴內容 -->
     <InfoCard title="申訴內容">
       <div class="type-row">
-        <span class="type-chip">{{ appeal.type }}</span>
+        <span class="type-chip">{{ appeal.typeLabel }}</span>
       </div>
-      <p class="description">{{ appeal.description }}</p>
+      <p class="description">{{ appeal.content }}</p>
     </InfoCard>
 
     <!-- 關聯資訊 -->
     <InfoCard title="關聯資訊">
       <KeyValue label="申訴人">
-        <RouterLink :to="`/op4/${appeal.informantId}`" class="id-link">
-          {{ appeal.informantId }} →
+        <RouterLink v-if="appeal.submitterId" :to="`/op4/${appeal.submitterId}`" class="id-link">
+          {{ appeal.submitterId }} →
         </RouterLink>
+        <span v-else class="none-text">—</span>
       </KeyValue>
       <KeyValue label="關聯事件">
-        <RouterLink v-if="appeal.relatedEventId" :to="`/op2/${appeal.relatedEventId}`" class="id-link">
-          {{ appeal.relatedEventId }} →
+        <!-- TODO(後端): relatedId 為整數，事件 id 格式為 'E-{n}'，暫以前綴組合 -->
+        <RouterLink v-if="appeal.relatedType === 'Event' && appeal.relatedId"
+                    :to="`/op2/E-${appeal.relatedId}`" class="id-link">
+          E-{{ appeal.relatedId }} →
         </RouterLink>
         <span v-else class="none-text">無關聯事件</span>
       </KeyValue>
@@ -36,17 +39,19 @@
 
     <!-- 動作列 -->
     <ActionBar v-if="!isTerminated">
-      <template v-if="appeal.status === 'pending'">
+      <template v-if="appeal.status === 'Open'">
         <button class="btn primary" @click="openDialog('accept')">受理申訴</button>
       </template>
-      <template v-else-if="appeal.status === 'investigating'">
+      <template v-else-if="appeal.status === 'InProgress'">
         <button class="btn primary" @click="openDialog('uphold')">裁決成立</button>
         <button class="btn danger"  @click="openDialog('reject')">裁決不成立</button>
       </template>
     </ActionBar>
 
     <!-- 審理時間軸 -->
+    <!-- TODO(後端): TicketResponse 無 history 欄位，審理歷程待後端補充 audit_log 端點後恢復 -->
     <StatusTimeline
+      v-if="timelineEntries.length"
       title="審理歷程（每節點皆須留跡）"
       :entries="timelineEntries"
     />
@@ -84,17 +89,16 @@ const store = useAppealsStore()
 const toast = useToastStore()
 const { selectedAppeal: appeal } = storeToRefs(store)
 
+// TODO(後端): SupportTicketStatus enum 值為 Open/InProgress/Resolved
 const STATUS_LABELS = {
-  pending:       '待處理',
-  investigating: '處理中',
-  upheld:        '成立',
-  rejected:      '不成立',
+  Open:       '待處理',
+  InProgress: '調查中',
+  Resolved:   '已結案',
 }
 const STATUS_VARIANTS = {
-  pending:       'wait',
-  investigating: 'info',
-  upheld:        'ok',
-  rejected:      'danger',
+  Open:       'wait',
+  InProgress: 'info',
+  Resolved:   'ok',
 }
 
 const VERDICT_REASONS = [
@@ -111,21 +115,21 @@ const DEFAULT_REASONS = [
   { value: 'other',      label: '其他' },
 ]
 
-const isTerminated = computed(() => ['upheld', 'rejected'].includes(appeal.value?.status))
+const isTerminated = computed(() => appeal.value?.status === 'Resolved')
 
 const steps = computed(() => {
-  const s = appeal.value?.status ?? 'pending'
-  const isClosed = isTerminated.value
-  const isInv    = s === 'investigating' || isClosed
-  const result   = appeal.value?.result
+  const s       = appeal.value?.status ?? 'Open'
+  const isClosed = s === 'Resolved'
+  const isInv    = s === 'InProgress' || isClosed
+  const res      = appeal.value?.resolution ?? ''
+  const isUpheld = res.startsWith('upheld:')
   return [
-    { label: '提交', state: 'done',                              lockAfter: false },
-    { label: '受理', state: isInv ? 'done' : 'now',             lockAfter: false },
-    { label: '調查', state: isClosed ? 'done' : (isInv ? 'now' : 'pending'), lockAfter: false },
+    { label: '提交', state: 'done' },
+    { label: '受理', state: isInv ? 'done' : 'now' },
+    { label: '調查', state: isClosed ? 'done' : (isInv ? 'now' : 'pending') },
     {
-      label: isClosed ? (result === 'upheld' ? '成立' : '不成立') : '裁決',
+      label: isClosed ? (isUpheld ? '成立' : '不成立') : '裁決',
       state: isClosed ? 'now' : 'pending',
-      lockAfter: false,
     },
   ]
 })
@@ -142,17 +146,17 @@ const timelineEntries = computed(() =>
 const DIALOG_CONFIG = {
   accept: {
     title:   '確認受理此申訴？',
-    body:    (a) => `將 ${a.id}（${a.type}）標記為受理，進入調查流程。`,
+    body:    (a) => `將 ${a.id}（${a.typeLabel}）標記為受理，進入調查流程。`,
     reasons: DEFAULT_REASONS,
   },
   uphold: {
     title:   '確認裁決成立？',
-    body:    (a) => `申訴人 ${a.informantId} 的「${a.type}」申訴將判定成立，請選擇裁決依據。`,
+    body:    (a) => `申訴人 #${a.submitterId} 的「${a.typeLabel}」申訴將判定成立，請選擇裁決依據。`,
     reasons: VERDICT_REASONS,
   },
   reject: {
     title:   '確認裁決不成立？',
-    body:    (a) => `申訴人 ${a.informantId} 的「${a.type}」申訴將判定不成立，請選擇裁決依據。`,
+    body:    (a) => `申訴人 #${a.submitterId} 的「${a.typeLabel}」申訴將判定不成立，請選擇裁決依據。`,
     reasons: VERDICT_REASONS,
   },
 }
@@ -170,10 +174,15 @@ function openDialog(action) {
   }
 }
 
-function onConfirm(reason) {
-  store.applyAction(appeal.value.id, dialog.value.action, reason)
-  dialog.value.open = false
-  toast.success('已處理・已留跡')
+async function onConfirm(reason) {
+  try {
+    await store.applyAction(appeal.value.id, dialog.value.action, reason)
+    toast.success('已處理・已留跡')
+  } catch (err) {
+    toast.error(err?.response?.data?.message ?? '操作失敗，請重試')
+  } finally {
+    dialog.value.open = false
+  }
 }
 </script>
 

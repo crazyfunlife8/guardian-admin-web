@@ -24,8 +24,9 @@ import MapCanvas from '../components/op1/MapCanvas.vue'
 import TodoPanel from '../components/op1/TodoPanel.vue'
 import LogStream from '../components/op1/LogStream.vue'
 import OpsMenu   from '../components/op1/OpsMenu.vue'
-import { useLogsStore }    from '../stores/logs'
-import { useSourcesStore } from '../stores/sources'
+import { useLogsStore }      from '../stores/logs'
+import { useSourcesStore }   from '../stores/sources'
+import { useDashboardStore } from '../stores/dashboard'
 
 const router       = useRouter()
 const menuOpen     = ref(false)
@@ -34,14 +35,17 @@ const logCollapsed = ref(false)
 
 const logsStore    = useLogsStore()
 const sourcesStore = useSourcesStore()
+const dashStore    = useDashboardStore()
 
 watch(theaterMode, (val) => { if (val) logCollapsed.value = true })
 
 onMounted(() => {
+  dashStore.startPoll()
   logsStore.connect()
   sourcesStore.startPoll()
 })
 onUnmounted(() => {
+  dashStore.stopPoll()
   logsStore.disconnect()
   sourcesStore.stopPoll()
 })

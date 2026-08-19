@@ -14,7 +14,7 @@
                 <span class="item-id mono">{{ hs.id }}</span>
                 <span class="item-name">{{ hs.name }}</span>
                 <span class="item-sub mono">({{ hs.lat }}, {{ hs.lng }})</span>
-                <span class="item-badge">半徑 {{ hs.radius.toLocaleString() }} m</span>
+                <span class="item-sub">半徑 {{ hs.radius }}m</span>
               </div>
               <div class="item-btns">
                 <button class="row-btn" :disabled="hsAddingNew || hsEditingId !== null" @click="startHsEdit(hs)">編輯</button>
@@ -25,7 +25,7 @@
             <div v-else class="item-form">
               <div class="form-row">
                 <label class="form-label">名稱</label>
-                <input v-model="hsDraft.name" class="form-input" placeholder="熱點名稱" />
+                <input v-model="hsDraft.name" class="form-input" placeholder="如：環狀線站周邊" />
               </div>
               <div class="form-row">
                 <label class="form-label">緯度</label>
@@ -34,8 +34,8 @@
                 <input v-model.number="hsDraft.lng" type="number" step="0.0001" class="form-input short mono" />
               </div>
               <div class="form-row">
-                <label class="form-label">半徑</label>
-                <input v-model.number="hsDraft.radius" type="number" min="1" class="form-input short mono" />
+                <label class="form-label">半徑（m）</label>
+                <input v-model.number="hsDraft.radius" type="number" step="50" min="50" class="form-input short mono" />
                 <span class="unit-text">m</span>
               </div>
               <div class="form-actions">
@@ -50,7 +50,7 @@
             <div class="item-form">
               <div class="form-row">
                 <label class="form-label">名稱</label>
-                <input v-model="hsDraft.name" class="form-input" placeholder="熱點名稱" />
+                <input v-model="hsDraft.name" class="form-input" placeholder="如：環狀線站周邊" />
               </div>
               <div class="form-row">
                 <label class="form-label">緯度</label>
@@ -59,8 +59,8 @@
                 <input v-model.number="hsDraft.lng" type="number" step="0.0001" class="form-input short mono" />
               </div>
               <div class="form-row">
-                <label class="form-label">半徑</label>
-                <input v-model.number="hsDraft.radius" type="number" min="1" class="form-input short mono" />
+                <label class="form-label">半徑（m）</label>
+                <input v-model.number="hsDraft.radius" type="number" step="50" min="50" class="form-input short mono" />
                 <span class="unit-text">m</span>
               </div>
               <div class="form-actions">
@@ -225,7 +225,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStaticDataStore, SCOPE_OPTIONS } from '../stores/staticData'
 import { useToastStore }                     from '../stores/toast'
 import OpsTopBar     from '../components/layout/OpsTopBar.vue'
@@ -235,6 +235,8 @@ import Toast         from '../components/shared/Toast.vue'
 
 const store = useStaticDataStore()
 const toast = useToastStore()
+
+onMounted(() => { store.loadHotspots(); store.loadSources() })
 
 // ── 操作依據選項 ─────────────────────────────────────────────
 const DATA_REASONS = [
@@ -327,7 +329,7 @@ function requestHsUpdate(id) {
   pendingOp.value = { type: 'hs-update', id, data: d }
   openDialog({
     title: `確認更新熱點「${d.name}」？`,
-    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b style="font-family:var(--mono)">${d.radius} m</b>`,
+    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b>${d.radius}m</b>`,
     reasons: DATA_REASONS,
   })
 }
@@ -338,7 +340,7 @@ function requestHsAdd() {
   pendingOp.value = { type: 'hs-add', data: d }
   openDialog({
     title: `確認新增熱點「${d.name}」？`,
-    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b style="font-family:var(--mono)">${d.radius} m</b>`,
+    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b>${d.radius}m</b>`,
     reasons: DATA_REASONS,
   })
 }
@@ -512,6 +514,8 @@ function requestBoundaryUpdate() {
   border: 1px solid var(--line);
   color: var(--text-secondary);
 }
+.item-badge.badge-ok  { color: var(--ok);  border-color: var(--ok); }
+.item-badge.badge-dim { color: var(--text-secondary); }
 
 .item-btns { display: flex; gap: 6px; flex-shrink: 0; }
 

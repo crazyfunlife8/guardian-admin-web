@@ -21,7 +21,7 @@
 
     <div class="top-right" :class="{ 'theater-right': theaterMode }">
       <span class="clock" :class="{ 'clock-theater': theaterMode }">{{ clock }}</span>
-      <span v-if="!theaterMode" class="account">值班：<b>OP-07</b>・營運員</span>
+      <span v-if="!theaterMode" class="account">值班：<b>{{ user?.username ?? '—' }}</b>・{{ roleLabel }}</span>
       <button class="theater-btn" @click="$emit('theater-toggle')">
         {{ theaterMode ? '✕ 退出掛牆' : '🖵 掛牆' }}
       </button>
@@ -31,14 +31,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSourcesStore } from '../../stores/sources'
+import { useAuthStore }    from '../../stores/auth'
 import { storeToRefs } from 'pinia'
 
 defineProps({ theaterMode: { type: Boolean, default: false } })
 defineEmits(['source-click', 'menu-click', 'theater-toggle'])
 
 const { sources } = storeToRefs(useSourcesStore())
+const { user }    = storeToRefs(useAuthStore())
+
+const ROLE_LABELS = { Operator: '營運員', Admin: '管理員', Supervisor: '督導' }
+const roleLabel = computed(() => ROLE_LABELS[user.value?.role] ?? user.value?.role ?? '—')
 
 const clock = ref('')
 function tick() {

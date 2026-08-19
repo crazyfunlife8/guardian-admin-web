@@ -6,11 +6,11 @@
     <div class="q-row1">
       <span class="oid">{{ item.id }}</span>
       <span class="src-tag">{{ item.source }}</span>
-      <StatusBadge class="op-8-badge" :label="STATE_LABELS[item.state]" :variant="STATE_VARIANTS[item.state]" />
+      <StatusBadge class="op-8-badge" :label="STATE_LABELS[item.status]" :variant="STATE_VARIANTS[item.status]" />
     </div>
     <div class="q-row2">
-      <span>{{ item.informantId }}</span>
-      <span>{{ item.rewardType }} <span class="mono">{{ item.amount }}</span></span>
+      <span>ID: {{ item.informantId }}</span>
+      <span class="mono">{{ item.amountPoints?.toLocaleString() }} 積分</span>
       <span class="mono">{{ item.time }}</span>
     </div>
   </li>
@@ -26,20 +26,22 @@ defineProps({
 defineEmits(['select'])
 
 const STATE_LABELS = {
-  wait:    '待核對',
-  checked: '已核對',
-  issued:  '已發放・待扣除',
-  hold:    '掛起（停權）',
-  done:    '已結清',
-  reject:  '已拒',
+  Applied:       '申請中',
+  PendingReview: '待核對',
+  Reserved:      '已核對（凍結中）',
+  Disbursed:     '已發放・待扣除',
+  Deducted:      '已結清',
+  Rejected:      '已拒',
+  Held:          '掛起（停權）',
 }
 const STATE_VARIANTS = {
-  wait:    'wait',
-  checked: 'checked',
-  issued:  'issued',
-  hold:    'hold',
-  done:    'ok',
-  reject:  'danger',
+  Applied:       'wait',
+  PendingReview: 'wait',
+  Reserved:      'checked',
+  Disbursed:     'issued',
+  Deducted:      'ok',
+  Rejected:      'danger',
+  Held:          'hold',
 }
 </script>
 

@@ -3,7 +3,7 @@
     <!-- 頁頭 -->
     <div class="d-head">
       <h2>{{ ticket.id }}</h2>
-      <span class="type-chip" :class="TYPE_CHIP[ticket.type]">{{ ticket.type }}</span>
+      <span class="type-chip" :class="TYPE_CHIP[ticket.typeLabel]">{{ ticket.typeLabel }}</span>
       <StatusBadge :label="STATUS_LABELS[ticket.status]" :variant="STATUS_VARIANTS[ticket.status]" />
       <span v-if="isTerminated" class="terminated-note">已結案，不可再操作</span>
     </div>
@@ -13,24 +13,24 @@
 
     <!-- 工單內容 -->
     <InfoCard title="工單內容">
-      <p class="description">{{ ticket.description }}</p>
+      <p class="description">{{ ticket.content }}</p>
       <KeyValue label="關聯事件">
-        <RouterLink v-if="ticket.relatedEventId" :to="`/op2/${ticket.relatedEventId}`" class="id-link">
-          {{ ticket.relatedEventId }} →
+        <RouterLink v-if="ticket.relatedType === 'Event' && ticket.relatedId" :to="`/op2/E-${ticket.relatedId}`" class="id-link">
+          E-{{ ticket.relatedId }} →
         </RouterLink>
         <span v-else class="none-text">無</span>
       </KeyValue>
-      <KeyValue label="關聯情報員">
-        <RouterLink v-if="ticket.relatedInformantId" :to="`/op4/${ticket.relatedInformantId}`" class="id-link">
-          {{ ticket.relatedInformantId }} →
+      <KeyValue label="提交人情報員">
+        <RouterLink v-if="ticket.submitterId" :to="`/op4/${ticket.submitterId}`" class="id-link">
+          #{{ ticket.submitterId }} →
         </RouterLink>
         <span v-else class="none-text">無</span>
       </KeyValue>
       <KeyValue label="提交時間" :value="ticket.submittedAt" mono />
     </InfoCard>
 
-    <!-- 回覆輸入（processing 才顯示） -->
-    <InfoCard v-if="ticket.status === 'processing'" title="新增回覆（內部留跡）">
+    <!-- 回覆輸入（InProgress 才顯示） -->
+    <InfoCard v-if="ticket.status === 'InProgress'" title="新增回覆（內部留跡）">
       <textarea
         v-model="replyText"
         class="reply-textarea"
@@ -48,10 +48,10 @@
 
     <!-- 動作列 -->
     <ActionBar v-if="!isTerminated">
-      <template v-if="ticket.status === 'pending'">
+      <template v-if="ticket.status === 'Open'">
         <button class="btn primary" @click="handleAccept">受理</button>
       </template>
-      <template v-else-if="ticket.status === 'processing'">
+      <template v-else-if="ticket.status === 'InProgress'">
         <button class="btn primary" @click="openDialog('close')">結案</button>
       </template>
     </ActionBar>
@@ -94,14 +94,14 @@ const { selectedTicket: ticket } = storeToRefs(store)
 
 const replyText = ref('')
 
-const STATUS_LABELS   = { pending: '待處理', processing: '處理中', closed: '已結案' }
-const STATUS_VARIANTS = { pending: 'wait',   processing: 'info',   closed: 'ok' }
+const STATUS_LABELS   = { Open: '待處理', InProgress: '處理中', Resolved: '已結案' }
+const STATUS_VARIANTS = { Open: 'wait',   InProgress: 'info',   Resolved: 'ok' }
 
 const TYPE_CHIP = {
-  '一般客服':       'chip-accent',
+  '一般客服':         'chip-accent',
   '申訴類・信譽異議': 'chip-warn',
   '申訴類・除名異議': 'chip-danger',
-  '用戶檢舉':       'chip-info',
+  '用戶檢舉':         'chip-info',
 }
 
 const CLOSE_REASONS = [
@@ -112,13 +112,13 @@ const CLOSE_REASONS = [
 ]
 
 const isTerminated = computed(() =>
-  ticket.value?.status === 'closed'
+  ticket.value?.status === 'Resolved'
 )
 
 const steps = computed(() => {
-  const s      = ticket.value?.status ?? 'pending'
-  const isDone = s === 'closed'
-  const isProc = s === 'processing' || isDone
+  const s      = ticket.value?.status ?? 'Open'
+  const isDone = s === 'Resolved'
+  const isProc = s === 'InProgress' || isDone
   return [
     { label: '建立',  state: 'done',                                          lockAfter: false },
     { label: '受理',  state: isProc ? 'done' : 'now',                        lockAfter: false },

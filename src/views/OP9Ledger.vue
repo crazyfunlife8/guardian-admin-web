@@ -10,7 +10,9 @@
           type="text"
           class="filter-input id-input"
           placeholder="情報員 ID（如 GI-0042）"
+          @keyup.enter="loadByInformantId"
         />
+        <button class="clear-btn" title="查詢此情報員帳本" @click="loadByInformantId">查詢</button>
 
         <div class="date-range">
           <input
@@ -102,15 +104,15 @@
                 <td class="mono">{{ tx.id }}</td>
                 <td class="mono">{{ tx.informantId }}</td>
                 <td>
-                  <span class="type-chip" :class="tx.type">
-                    {{ TX_TYPE_LABELS[tx.type] }}
+                  <span class="type-chip" :class="ENTRY_CLASS[tx.entryType]">
+                    {{ TX_TYPE_LABELS[tx.entryType] ?? tx.entryType }}
                   </span>
                 </td>
                 <td class="mono num-col" :class="amountClass(tx.amount)">
                   {{ formatAmount(tx.amount) }}
                 </td>
                 <td class="mono num-col balance-col">
-                  {{ tx.balance.toLocaleString() }}
+                  {{ tx.balance != null ? tx.balance.toLocaleString() : '—' }}
                 </td>
                 <td class="mono time-col">{{ tx.date }} {{ tx.time }}</td>
               </tr>
@@ -142,6 +144,15 @@ import { onMounted, ref } from 'vue'
 import { storeToRefs }    from 'pinia'
 import { useRoute }       from 'vue-router'
 import { useLedgerStore, TX_TYPE_LABELS } from '../stores/ledger'
+
+const ENTRY_CLASS = {
+  Credit:       'credit',
+  Debit:        'deduct',
+  Freeze:       'freeze',
+  Unfreeze:     'unfreeze',
+  Defer:        'adjust',
+  DeferRelease: 'adjust',
+}
 import { useToastStore } from '../stores/toast'
 import OpsTopBar from '../components/layout/OpsTopBar.vue'
 import Toast     from '../components/shared/Toast.vue'
@@ -159,6 +170,11 @@ onMounted(() => {
     store.presetInformant(String(route.query.gid))
   }
 })
+
+function loadByInformantId() {
+  const id = filterState.value.informantId.trim()
+  if (id) store.presetInformant(id)
+}
 
 function toggleExpand(id) {
   expandedId.value = expandedId.value === id ? null : id
@@ -209,7 +225,7 @@ function exportCsv() {
   const rows = filteredTx.value.map(tx => [
     tx.id,
     tx.informantId,
-    TX_TYPE_LABELS[tx.type] ?? tx.type,
+    TX_TYPE_LABELS[tx.entryType] ?? tx.entryType,
     formatAmount(tx.amount),
     tx.balance,
     tx.date,

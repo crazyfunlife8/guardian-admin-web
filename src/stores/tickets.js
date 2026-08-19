@@ -1,100 +1,97 @@
-import { ref, computed } from 'vue'
-import { defineStore }   from 'pinia'
+import { ref, computed, reactive } from 'vue'
+import { defineStore } from 'pinia'
+import client from '../api/client'
 
-export const TICKET_TYPES = ['一般客服', '申訴類・信譽異議', '申訴類・除名異議', '用戶檢舉']
+const SUBTYPE_LABELS = {
+  ReputationDispute: '信譽異議',
+  RemovalDispute:    '除名異議',
+  General:           '一般申訴',
+}
+
+// ticketType 使用 API 文件 3.5 定義的小寫值：appeal / report / change_request
+// CustomerService / RedemptionService 型別在 API 文件未定義，待後端確認正確值（缺口 #29）
+function typeLabel(ticketType, subtype) {
+  if (ticketType === 'appeal') {
+    const s = SUBTYPE_LABELS[subtype] ?? subtype ?? ''
+    return s ? `申訴類・${s}` : '申訴'
+  }
+  if (ticketType === 'report')            return '用戶檢舉'
+  if (ticketType === 'CustomerService')   return '一般客服'    // TODO(後端): 確認 API 實際值
+  if (ticketType === 'RedemptionService') return '兌換相關客服' // TODO(後端): 確認 API 實際值
+  return ticketType ?? '未知'
+}
+
+// 建工單 dropdown 選項：label ↔ API { ticketType, subtype }
+export const TICKET_TYPE_MAP = [
+  { label: '一般客服',         ticketType: 'CustomerService',   subtype: null },  // TODO(後端): API 值待確認
+  { label: '兌換相關客服',     ticketType: 'RedemptionService', subtype: null },  // TODO(後端): API 值待確認
+  { label: '申訴類・信譽異議', ticketType: 'appeal',            subtype: 'ReputationDispute' },
+  { label: '申訴類・除名異議', ticketType: 'appeal',            subtype: 'RemovalDispute' },
+  { label: '用戶檢舉',         ticketType: 'report',            subtype: null },
+]
+
+export const TICKET_TYPES = TICKET_TYPE_MAP.map(t => t.label)
 
 export const STATUS_LABELS = {
-  pending:    '待處理',
-  processing: '處理中',
-  closed:     '已結案',
+  Open:       '待處理',
+  InProgress: '處理中',
+  Resolved:   '已結案',
 }
 export const STATUS_VARIANTS = {
-  pending:    'wait',
-  processing: 'info',
-  closed:     'ok',
+  Open:       'wait',
+  InProgress: 'info',
+  Resolved:   'ok',
 }
 
 export const FILTERS = [
-  { label: '待處理', key: 'pending' },
-  { label: '處理中', key: 'processing' },
-  { label: '已結案', key: 'closed' },
+  { label: '待處理', key: 'Open' },
+  { label: '處理中', key: 'InProgress' },
+  { label: '已結案', key: 'Resolved' },
   { label: '全部',   key: 'all' },
 ]
 
-export const useTicketsStore = defineStore('tickets', () => {
-  const tickets = ref([
-    {
-      id: 'TK-001',
-      type: '一般客服',
-      status: 'pending',
-      description: '本月任務完成率達標但積分未正常入帳，已等待超過 48 小時，系統顯示「處理中」但無進一步說明。',
-      relatedEventId: null,
-      relatedInformantId: 'GI-0042',
-      submittedAt: '2026-07-22 08:30',
-      history: [
-        { time: '2026-07-22 08:30', text: '工單建立', actor: 'ADM-002' },
-      ],
-    },
-    {
-      id: 'TK-002',
-      type: '一般客服',
-      status: 'processing',
-      description: '帳號無法登入，重設密碼後仍顯示「帳號已停用」，但運營人員未收到任何停用通知。',
-      relatedEventId: null,
-      relatedInformantId: 'GI-0031',
-      submittedAt: '2026-07-21 14:15',
-      history: [
-        { time: '2026-07-21 14:15', text: '工單建立', actor: 'ADM-001' },
-        { time: '2026-07-21 15:03', text: '受理，開始調查帳號停用記錄', actor: 'ADM-003' },
-      ],
-    },
-    {
-      id: 'TK-003',
-      type: '申訴類・信譽異議',
-      status: 'processing',
-      description: '情報員反映驗證任務廣播後無人接單，逾時後系統自動記為「逾時失敗」並扣除信譽分，認為應屬系統異常非個人失誤。',
-      relatedEventId: 'EV-003',
-      relatedInformantId: 'GI-0015',
-      submittedAt: '2026-07-21 09:45',
-      history: [
-        { time: '2026-07-21 09:45', text: '工單建立', actor: 'ADM-002' },
-        { time: '2026-07-21 10:22', text: '受理，查詢事件 EV-003 廣播紀錄', actor: 'ADM-002' },
-        { time: '2026-07-21 11:15', text: '回覆：廣播紀錄顯示當時區域情報員均離線，確認為覆蓋率不足，非系統故障', actor: 'ADM-002' },
-      ],
-    },
-    {
-      id: 'TK-004',
-      type: '一般客服',
-      status: 'closed',
-      description: '建議 App 地圖事件圖標改為更易辨識的形狀，目前圓形圖標在深色底圖上不夠清晰。',
-      relatedEventId: null,
-      relatedInformantId: null,
-      submittedAt: '2026-07-20 16:00',
-      history: [
-        { time: '2026-07-20 16:00', text: '工單建立', actor: 'ADM-001' },
-        { time: '2026-07-20 16:30', text: '受理，轉記產品反饋清單', actor: 'ADM-001' },
-        { time: '2026-07-20 17:00', text: '結案：已轉交產品團隊，列入下版本迭代評估', actor: 'ADM-001' },
-      ],
-    },
-    {
-      id: 'TK-005',
-      type: '一般客服',
-      status: 'closed',
-      description: '稱積分遭系統誤扣，但核對兌換核銷記錄 RD-0001 顯示扣除合規，資料有誤。',
-      relatedEventId: null,
-      relatedInformantId: 'GI-0028',
-      submittedAt: '2026-07-19 11:20',
-      history: [
-        { time: '2026-07-19 11:20', text: '工單建立', actor: 'ADM-003' },
-        { time: '2026-07-19 12:00', text: '受理，查核兌換核銷記錄', actor: 'ADM-003' },
-        { time: '2026-07-19 13:45', text: '結案：核對 RD-0001，扣除操作符合規則，無誤扣情形', actor: 'ADM-003' },
-      ],
-    },
-  ])
+function formatAgo(iso) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins} 分前`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} 小時前`
+  return `${Math.floor(hrs / 24)} 天前`
+}
 
-  const selectedId   = ref('TK-001')
+function mapListItem(d) {
+  return {
+    id:          String(d.id),
+    typeLabel:   typeLabel(d.ticketType, d.subtype),
+    status:      d.status ?? 'Open',
+    relatedType: d.relatedType ?? null,
+    relatedId:   d.relatedId ?? null,
+    submittedAt: formatAgo(d.createdAt),
+  }
+}
+
+function mapDetail(d) {
+  return {
+    id:          String(d.id),
+    typeLabel:   typeLabel(d.ticketType, d.subtype),
+    status:      d.status ?? 'Open',
+    content:     d.content ?? '',
+    submitterId: d.submitterId ?? null,
+    relatedType: d.relatedType ?? null,
+    relatedId:   d.relatedId ?? null,
+    resolution:  d.resolution ?? null,
+    submittedAt: formatAgo(d.createdAt),
+    resolvedAt:  d.resolvedAt ? new Date(d.resolvedAt).toLocaleDateString('zh-TW') : null,
+    history:     [],  // TODO(後端): TicketResponse 不含歷程，前端只能記本次操作
+  }
+}
+
+export const useTicketsStore = defineStore('tickets', () => {
+  const tickets      = ref([])
+  const _cache       = reactive({})
+  const selectedId   = ref(null)
   const filterStatus = ref('all')
-  let _seq = 6
 
   const filteredTickets = computed(() => {
     if (filterStatus.value === 'all') return tickets.value
@@ -102,50 +99,94 @@ export const useTicketsStore = defineStore('tickets', () => {
   })
 
   const selectedTicket = computed(() =>
-    tickets.value.find(t => t.id === selectedId.value) ?? null
+    selectedId.value
+      ? (_cache[selectedId.value] ?? tickets.value.find(t => t.id === selectedId.value) ?? null)
+      : null
   )
 
-  function select(id)     { selectedId.value   = id }
-  function setFilter(key) { filterStatus.value = key }
-
-  function addTicket(data) {
-    const id  = `TK-00${_seq++}`
-    const now = new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 16)
-    tickets.value.unshift({
-      id,
-      type:               data.type,
-      status:             'pending',
-      description:        data.description,
-      relatedEventId:     data.relatedEventId     || null,
-      relatedInformantId: data.relatedInformantId || null,
-      submittedAt:        now,
-      history: [{ time: now, text: '工單建立', actor: 'ADM-001' }],
-    })
-    selectedId.value = id
+  async function load(type) {
+    try {
+      const params = type ? `?type=${type}` : ''
+      const { data } = await client.get(`/api/backend/tickets${params}`)
+      tickets.value = data.map(mapListItem)
+      if (tickets.value.length && !selectedId.value) {
+        select(tickets.value[0].id)
+      }
+    } catch (err) {
+      console.error('tickets load failed', err)
+    }
   }
 
-  function applyAction(id, action, reason) {
-    const ticket = tickets.value.find(t => t.id === id)
-    if (!ticket) return
-    const now = new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 16)
-    switch (action) {
-      case 'accept':
-        ticket.status = 'processing'
-        ticket.history.push({ time: now, text: '受理，開始調查', actor: 'ADM-001' })
-        break
-      case 'reply':
-        ticket.history.push({ time: now, text: `回覆：${reason}`, actor: 'ADM-001' })
-        break
-      case 'close':
-        ticket.status = 'closed'
-        ticket.history.push({ time: now, text: `結案：${reason}`, actor: 'ADM-001' })
-        break
+  async function fetchDetail(id) {
+    try {
+      const { data } = await client.get(`/api/backend/tickets/${id}`)
+      _cache[id] = mapDetail(data)
+    } catch (err) {
+      console.error('ticket fetchDetail failed', err)
     }
+  }
+
+  function select(id) {
+    selectedId.value = id
+    if (!_cache[id]) fetchDetail(id)
+  }
+
+  function setFilter(key) {
+    filterStatus.value = key
+  }
+
+  async function addTicket(draft) {
+    const typeDef = TICKET_TYPE_MAP.find(t => t.label === draft.type)
+      ?? { ticketType: 'CustomerService', subtype: null }
+
+    const relatedType = draft.relatedEventId?.trim() ? 'Event' : null
+    const relatedId   = draft.relatedEventId?.trim()
+      ? (parseInt(draft.relatedEventId.replace(/\D/g, ''), 10) || null)
+      : null
+
+    const { data } = await client.post('/api/backend/tickets', {
+      ticketType:  typeDef.ticketType,
+      subtype:     typeDef.subtype,
+      content:     draft.description,
+      relatedType,
+      relatedId,
+      channel:     'Backend',
+    })
+    const newItem = mapListItem(data)
+    tickets.value.unshift(newItem)
+    _cache[newItem.id] = mapDetail(data)
+    selectedId.value = newItem.id
+  }
+
+  async function applyAction(id, action, reason) {
+    if (action === 'accept') {
+      await client.post(`/api/backend/tickets/${id}/claim`)
+      _patchStatus(id, 'InProgress')
+    } else if (action === 'close') {
+      await client.post(`/api/backend/tickets/${id}/resolve`, { resolution: reason })
+      _patchStatus(id, 'Resolved')
+      if (_cache[id]) _cache[id].resolution = reason
+    } else if (action === 'reply') {
+      // TODO(後端): TicketResponse 不含歷程；回覆只記錄本地
+      if (_cache[id]) {
+        _cache[id].history.push({
+          time:  new Date().toLocaleString('zh-TW').slice(0, 16),
+          text:  `回覆：${reason}`,
+          actor: '後台人員',
+        })
+      }
+    }
+  }
+
+  function _patchStatus(id, status) {
+    if (_cache[id]) _cache[id].status = status
+    const item = tickets.value.find(t => t.id === id)
+    if (item) item.status = status
   }
 
   return {
     tickets, selectedId, filterStatus,
     filteredTickets, selectedTicket,
-    select, setFilter, addTicket, applyAction,
+    load, select, setFilter, addTicket, applyAction,
   }
 })

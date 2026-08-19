@@ -1,42 +1,43 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import client from '../api/client'
 
 export const TX_TYPE_LABELS = {
-  credit:   '積分入帳',
-  freeze:   '凍結',
-  deduct:   '兌換扣除',
-  unfreeze: '解凍退回',
-  adjust:   '系統調整',
+  Credit:       '積分入帳',
+  Debit:        '積分扣除',
+  Freeze:       '凍結',
+  Unfreeze:     '解凍退回',
+  Defer:        '遞延',
+  DeferRelease: '遞延解除',
 }
 
-const MOCK_TX = [
-  // GI-0042（redeemable 2150, frozen 500, monthlyEarned 680）
-  { id: 'TX-0016', informantId: 'GI-0042', type: 'freeze',   amount: -500,  balance: 2150, date: '2026-07-20', time: '13:15', note: '兌換申請 RD-0003 凍結積分，待核對' },
-  { id: 'TX-0015', informantId: 'GI-0042', type: 'credit',   amount:  200,  balance: 2650, date: '2026-07-20', time: '11:42', note: '任務 T-1042 完成（施工封路確認）' },
-  { id: 'TX-0014', informantId: 'GI-0042', type: 'credit',   amount:  180,  balance: 2450, date: '2026-07-19', time: '16:08', note: '任務 T-1035 完成（事故確認）' },
-  { id: 'TX-0013', informantId: 'GI-0042', type: 'credit',   amount:  200,  balance: 2270, date: '2026-07-19', time: '09:31', note: '任務 T-1029 完成（臨時路檢確認）' },
-  { id: 'TX-0012', informantId: 'GI-0042', type: 'deduct',   amount: -1000, balance: 2070, date: '2026-07-18', time: '14:22', note: '兌換申請 RD-0001 發放完成，積分扣除' },
-  { id: 'TX-0011', informantId: 'GI-0042', type: 'credit',   amount:  100,  balance: 3070, date: '2026-07-17', time: '10:55', note: '任務 T-1018 完成（管制確認）' },
+export const SOURCE_REF_LABELS = {
+  Task:       '任務',
+  Adjustment: '人工調整',
+  Redemption: '兌換申請',
+}
 
-  // GI-0071（redeemable 870, frozen 0, monthlyEarned 310）
-  { id: 'TX-0010', informantId: 'GI-0071', type: 'credit',   amount:  180,  balance:  870, date: '2026-07-20', time: '14:50', note: '任務 T-1041 完成（事故確認）' },
-  { id: 'TX-0009', informantId: 'GI-0071', type: 'credit',   amount:  130,  balance:  690, date: '2026-07-19', time: '08:17', note: '任務 T-1022 完成（施工封路確認）' },
-  { id: 'TX-0008', informantId: 'GI-0071', type: 'unfreeze', amount:  300,  balance:  560, date: '2026-07-17', time: '17:30', note: '兌換申請 RD-0002 發放失敗，凍結積分解除退回' },
-  { id: 'TX-0007', informantId: 'GI-0071', type: 'freeze',   amount: -300,  balance:  260, date: '2026-07-16', time: '11:00', note: '兌換申請 RD-0002 凍結積分，待核對' },
-
-  // GI-0105（redeemable 0, frozen 200, monthlyEarned 0）
-  { id: 'TX-0006', informantId: 'GI-0105', type: 'freeze',   amount: -200,  balance:    0, date: '2026-07-10', time: '09:05', note: '兌換申請 RD-0004 凍結積分，待核對（帳號已停權，申請掛起）' },
-  { id: 'TX-0005', informantId: 'GI-0105', type: 'adjust',   amount: -150,  balance:  200, date: '2026-07-08', time: '15:40', note: '系統調整：誤報罰扣（AC-004 違規確認，操作依據：確認違規）' },
-  { id: 'TX-0004', informantId: 'GI-0105', type: 'credit',   amount:  100,  balance:  350, date: '2026-07-05', time: '10:22', note: '任務 T-0891 完成（臨時路檢確認）' },
-
-  // GI-0118（redeemable 80, frozen 0, monthlyEarned 80）
-  { id: 'TX-0003', informantId: 'GI-0118', type: 'credit',   amount:   80,  balance:   80, date: '2026-07-18', time: '16:20', note: '任務 T-1031 完成（施工封路確認）' },
-  { id: 'TX-0002', informantId: 'GI-0118', type: 'adjust',   amount:   50,  balance:    0, date: '2026-07-15', time: '09:00', note: '系統調整：新成員加入獎勵積分' },
-  { id: 'TX-0001', informantId: 'GI-0118', type: 'credit',   amount:    0,  balance:    0, date: '2026-07-14', time: '18:00', note: '帳戶建立' },
-]
+function mapEntry(d, informantId) {
+  const refLabel = SOURCE_REF_LABELS[d.sourceRefType] ?? d.sourceRefType ?? ''
+  const refId    = d.sourceRefId ?? null
+  return {
+    id:           String(d.id),
+    informantId:  informantId ?? null,
+    entryType:    d.entryType ?? '',
+    amount:       d.amount ?? 0,
+    sourceRefType: d.sourceRefType ?? null,
+    sourceRefId:  refId,
+    note:         refLabel + (refId ? ` #${refId}` : ''),
+    date:         d.createdAt ? d.createdAt.slice(0, 10) : '',
+    time:         d.createdAt ? new Date(d.createdAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '',
+    balance:      d.balance ?? null,
+  }
+}
 
 export const useLedgerStore = defineStore('ledger', () => {
-  const txList = ref(MOCK_TX)
+  const txList      = ref([])
+  const invariant   = ref(null)
+  const currentId   = ref('')    // 目前載入的情報員 id
 
   const filterState = ref({
     informantId: '',
@@ -46,15 +47,33 @@ export const useLedgerStore = defineStore('ledger', () => {
   })
 
   const filteredTx = computed(() => {
-    const { informantId, dateFrom, dateTo, type } = filterState.value
+    const { dateFrom, dateTo, type } = filterState.value
     return txList.value.filter(tx => {
-      if (informantId.trim() && !tx.informantId.toLowerCase().includes(informantId.trim().toLowerCase())) return false
       if (dateFrom && tx.date < dateFrom) return false
       if (dateTo   && tx.date > dateTo)   return false
-      if (type !== 'all' && tx.type !== type) return false
+      if (type !== 'all' && tx.entryType !== type) return false
       return true
     })
   })
+
+  async function fetch(informantId) {
+    try {
+      currentId.value = String(informantId)
+      const { data } = await client.get(`/api/backend/informants/${informantId}/ledger`)
+      txList.value = data.map(d => mapEntry(d, informantId))
+    } catch (err) {
+      console.error('ledger fetch failed', err)
+    }
+  }
+
+  async function fetchInvariant(informantId) {
+    try {
+      const { data } = await client.get(`/api/backend/informants/${informantId}/invariant`)
+      invariant.value = data
+    } catch (err) {
+      console.error('invariant fetch failed', err)
+    }
+  }
 
   function setFilter(key, value) {
     filterState.value[key] = value
@@ -62,27 +81,15 @@ export const useLedgerStore = defineStore('ledger', () => {
 
   function presetInformant(id) {
     filterState.value.informantId = id
+    fetch(id)
   }
 
-  let _seq = 17
-
-  function credit(informantId, amount, reason) {
-    const ts  = new Date().toLocaleString('sv-SE').replace('T', ' ')
-    const last = [...txList.value]
-      .filter(t => t.informantId === informantId)
-      .sort((a, b) => b.id.localeCompare(a.id))[0]
-    const prevBalance = last ? last.balance : 0
-    txList.value.unshift({
-      id:          `TX-${String(_seq++).padStart(4, '0')}`,
-      informantId,
-      type:        'adjust',
-      amount,
-      balance:     prevBalance + amount,
-      date:        ts.slice(0, 10),
-      time:        ts.slice(11, 16),
-      note:        `人工入帳（${reason}）`,
-    })
+  async function credit(informantId, amount, reason) {
+    await client.post(`/api/backend/informants/${informantId}/credit`, { amount, reason })
+    // 重新載入以取得最新帳本
+    await fetch(informantId)
   }
 
-  return { txList, filterState, filteredTx, setFilter, presetInformant, credit }
+  return { txList, invariant, filterState, filteredTx, currentId,
+           fetch, fetchInvariant, setFilter, presetInformant, credit }
 })

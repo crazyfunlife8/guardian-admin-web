@@ -4,7 +4,7 @@
 <template>
   <div class="timeline">
     <h3 v-if="title">{{ title }}</h3>
-    <div class="tl">
+    <div v-if="entries.length" class="tl">
       <div
         v-for="(e, i) in entries"
         :key="i"
@@ -15,6 +15,7 @@
         <span v-if="e.actor" class="who">・{{ e.actor }}</span>
       </div>
     </div>
+    <p v-else class="empty">暫無歷程紀錄</p>
   </div>
 </template>
 
@@ -62,4 +63,5 @@ h3 {
 .tl div.done::before { background: var(--ok); }
 time { font-family: var(--mono); color: var(--text-secondary); margin-right: 10px; font-size: 13px; }
 .who { color: var(--text-secondary); }
+.empty { font-size: 13px; color: var(--text-secondary); }
 </style>

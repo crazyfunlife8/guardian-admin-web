@@ -1,0 +1,1 @@
+import{C as e,N as t,a as n,b as r,j as i}from"./index-Utcmmi_w.js";var a={},o={class:`ops-root`},s={class:`ops-layout`};function c(n,a){return i(),e(`div`,o,[t(n.$slots,`topbar`,{},void 0,!0),r(`div`,s,[t(n.$slots,`queue`,{},void 0,!0),t(n.$slots,`detail`,{},void 0,!0)])])}var l=n(a,[[`render`,c],[`__scopeId`,`data-v-0160aa50`]]);export{l as t};

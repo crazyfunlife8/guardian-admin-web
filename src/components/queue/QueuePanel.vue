@@ -14,7 +14,7 @@
     <div class="q-head">
       <h1>
         {{ title }}
-        <span class="count-badge">{{ count }}</span>
+        <span class="count-badge" :class="{ 'has-items': count > 0 }">{{ count }}</span>
         <button v-if="addLabel" class="add-btn" @click="$emit('add-click')">＋ {{ addLabel }}</button>
       </h1>
       <div class="q-filters">
@@ -70,6 +70,9 @@ h1 {
   font-weight: 600;
   border-radius: 999px;
   padding: 2px 10px;
+  color: var(--text-secondary);
+}
+.count-badge.has-items {
   background: var(--warn);
   color: #1A1405;
 }

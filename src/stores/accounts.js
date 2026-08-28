@@ -14,23 +14,37 @@ export const STATUS_LABELS_ACCOUNT = {
 }
 
 export const ACTION_TYPES = [
-  '事件確認', '誤報下架', '申訴裁決', '兌換核銷',
-  '資格審核', '系統參數修改', '規則設定修改',
-  '帳號新增', '帳號停用', '帳號管理', '靜態資料修改',
+  'EventConfirm', 'FalseReportRemove', 'AppealResolve', 'RedemptionSettle',
+  'QualificationReview', 'SystemParamUpdate', 'RuleUpdate',
+  'AccountCreate', 'AccountDisable', 'AccountUpdate', 'StaticDataUpdate',
 ]
 
+export const ACTION_TYPE_LABELS = {
+  EventConfirm:        '事件確認',
+  FalseReportRemove:   '誤報下架',
+  AppealResolve:       '申訴裁決',
+  RedemptionSettle:    '兌換核銷',
+  QualificationReview: '資格審核',
+  SystemParamUpdate:   '系統參數修改',
+  RuleUpdate:          '規則設定修改',
+  AccountCreate:       '帳號新增',
+  AccountDisable:      '帳號停用',
+  AccountUpdate:       '帳號管理',
+  StaticDataUpdate:    '靜態資料修改',
+}
+
 export const ACTION_CHIP_CLASS = {
-  '系統參數修改': 'chip-warn',
-  '規則設定修改': 'chip-warn',
-  '帳號新增':    'chip-info',
-  '帳號停用':    'chip-danger',
-  '帳號管理':    'chip-info',
-  '資格審核':    'chip-accent',
-  '申訴裁決':    'chip-accent',
-  '事件確認':    'chip-ok',
-  '誤報下架':    'chip-ok',
-  '兌換核銷':    'chip-ok',
-  '靜態資料修改': 'chip-secondary',
+  SystemParamUpdate:   'chip-warn',
+  RuleUpdate:          'chip-warn',
+  AccountCreate:       'chip-info',
+  AccountDisable:      'chip-danger',
+  AccountUpdate:       'chip-info',
+  QualificationReview: 'chip-accent',
+  AppealResolve:       'chip-accent',
+  EventConfirm:        'chip-ok',
+  FalseReportRemove:   'chip-ok',
+  RedemptionSettle:    'chip-ok',
+  StaticDataUpdate:    'chip-secondary',
 }
 
 function mapAccount(d) {
@@ -52,7 +66,6 @@ function mapAuditItem(d) {
     actionType: d.action ?? '',
     target:     d.targetId != null ? String(d.targetId) : (d.targetType ?? ''),
     detail:     d.detail ?? '',
-    ip:         '',    // TODO(後端): AuditItem 不含 IP 欄位
   }
 }
 

@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
+  { path: '/change-password', component: () => import('../views/ChangePasswordView.vue'), meta: { passwordChange: true } },
   { path: '/',      redirect: '/op1' },
   { path: '/op1',                 component: () => import('../views/OP1Monitor.vue') },
   { path: '/op2/:eventId',        component: () => import('../views/OP2EventDetail.vue') },
@@ -28,8 +29,8 @@ router.beforeEach((to) => {
     if (auth.isLoggedIn) return '/'
     return true
   }
-  // TODO: 上線前重新啟用
-  // if (!auth.isLoggedIn) return '/login'
+  if (!auth.isLoggedIn) return '/login'
+  if (auth.mustChangePassword && !to.meta.passwordChange) return '/change-password'
   return true
 })
 

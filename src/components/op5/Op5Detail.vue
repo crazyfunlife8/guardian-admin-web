@@ -27,10 +27,9 @@
         <span v-else class="none-text">—</span>
       </KeyValue>
       <KeyValue label="關聯事件">
-        <!-- TODO(後端): relatedId 為整數，事件 id 格式為 'E-{n}'，暫以前綴組合 -->
         <RouterLink v-if="appeal.relatedType === 'Event' && appeal.relatedId"
-                    :to="`/op2/E-${appeal.relatedId}`" class="id-link">
-          E-{{ appeal.relatedId }} →
+                    :to="`/op2/${appeal.relatedId}`" class="id-link">
+          {{ appeal.relatedId }} →
         </RouterLink>
         <span v-else class="none-text">無關聯事件</span>
       </KeyValue>

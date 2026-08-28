@@ -2,7 +2,6 @@
   <li :class="{ sel: selected }" @click="$emit('select', item.id)">
     <div class="q-row1">
       <span class="cid">{{ item.id }}</span>
-      <span class="type-tag" :class="item.type">{{ TYPE_LABELS[item.type] }}</span>
       <StatusBadge class="q-badge" :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANTS[item.status]" />
     </div>
     <div class="q-row2">
@@ -22,10 +21,6 @@ defineProps({
 })
 defineEmits(['select'])
 
-const TYPE_LABELS = {
-  single_fake:       '單人作假',
-  suspicious_source: '可疑來源',
-}
 const STATUS_LABELS = {
   pending:   '待覆核',
   confirmed: '確認停權',
@@ -59,17 +54,6 @@ li.sel   { background: var(--bg-panel-raised); box-shadow: inset 3px 0 0 var(--a
   font-weight: 600;
   flex-shrink: 0;
 }
-.type-tag {
-  font-size: 11px;
-  border-radius: 4px;
-  padding: 1px 7px;
-  border: 1px solid var(--line);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.type-tag.single_fake       { color: var(--warn);   border-color: var(--warn); }
-.type-tag.suspicious_source { color: var(--danger); border-color: var(--danger); }
-
 .q-row2 {
   display: flex;
   justify-content: space-between;

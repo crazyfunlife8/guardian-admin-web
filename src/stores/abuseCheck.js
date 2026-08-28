@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import client from '../api/client'
+import client, { BASE_URL } from '../api/client'
 
 // 規則分組元資料（UI 層資料，key 對應 params store 參數鍵）
 export const RULE_GROUP_META = [
@@ -23,14 +23,24 @@ const RULE_DEFS = [
 ]
 
 function mapObservation(d) {
+  const time = d.observedAt ? new Date(d.observedAt).toLocaleString('zh-TW') : ''
   return {
     id:                   String(d.id),
     canonicalEventId:     d.canonicalEventId ?? null,
     reporterInformantId:  d.reporterInformantId ?? null,
+    informantId:          d.reporterInformantId ? String(d.reporterInformantId) : null,
     taskId:               d.taskId ?? null,
     rawFields:            d.rawFields ?? '',
-    observedAt:           d.observedAt ? new Date(d.observedAt).toLocaleString('zh-TW') : '',
-    status:               'pending',   // API 不回傳 status；未覆核的均視為 pending
+    rule:                 d.rawFields ?? '',
+    observedAt:           time,
+    triggeredAt:          time,
+    status:               'pending',
+    evidence:             (d.evidence ?? []).map(e => ({
+      id:            String(e.id),
+      evidenceType:  e.evidenceType,
+      createdAt:     e.createdAt ? new Date(e.createdAt).toLocaleString('zh-TW') : '',
+    })),
+    evidenceSkipped:      d.evidenceSkipped ?? false,
   }
 }
 
@@ -41,7 +51,7 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
 
   const filterStatus = ref('all')
   const selectedId   = ref(null)
-  const reportFilter = ref({ ruleType: 'all', informantId: '' })
+  const reportFilter = ref({ informantId: '' })
 
   const filteredCases = computed(() => {
     const f = filterStatus.value
@@ -66,15 +76,12 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
   }
 
   const filteredReports = computed(() => {
-    let list = caseList.value
-    const { ruleType, informantId } = reportFilter.value
-    if (informantId.trim()) {
-      const q = informantId.trim().toLowerCase()
-      list = list.filter(c =>
-        String(c.reporterInformantId ?? '').toLowerCase().includes(q)
-      )
-    }
-    return list
+    const { informantId } = reportFilter.value
+    if (!informantId.trim()) return caseList.value
+    const q = informantId.trim().toLowerCase()
+    return caseList.value.filter(c =>
+      String(c.informantId ?? c.reporterInformantId ?? '').toLowerCase().includes(q)
+    )
   })
 
   async function loadObservations() {
@@ -117,23 +124,34 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
     const rule = ruleList.value.find(r => r.key === key)
     if (!rule) return
     const oldValue = rule.value
-    // TODO(後端): PUT /api/backend/parameters/{key} 的 request body 格式待確認（同 params.js）
-    await client.put(`/api/backend/parameters/${key}`, { value: String(value) })
+    // OpenAPI: body 為 raw JSON 數值，同 params.js 修正
+    await client.put(`/api/backend/parameters/${key}`, Number(value))
     rule.value = Number(value)
     const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
     rule.history.push({ time: now, from: oldValue, to: Number(value), reason, actor: '後台人員' })
   }
 
-  async function blockDevice(deviceUid) {
-    await client.post(`/api/backend/abuse/devices/${deviceUid}/block`)
+  async function blockDevice(deviceUid, reason = '') {
+    await client.post(`/api/backend/abuse/devices/${deviceUid}/block`, { reason })
   }
 
   async function unblockDevice(deviceUid) {
     await client.post(`/api/backend/abuse/devices/${deviceUid}/unblock`)
   }
 
-  async function releaseDeviceLink(id) {
-    await client.post(`/api/backend/abuse/device-links/${id}/release`)
+  async function releaseDeviceLink(id, reason = '') {
+    await client.post(`/api/backend/abuse/device-links/${id}/release`, { reason })
+  }
+
+  async function fetchEvidenceFile(taskId, evidenceId) {
+    const token = localStorage.getItem('accessToken')
+    const res = await fetch(
+      `${BASE_URL}/api/backend/tasks/${taskId}/evidence/${evidenceId}/file`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (!res.ok) throw new Error(`${res.status}`)
+    const blob = await res.blob()
+    return { url: URL.createObjectURL(blob), isImage: blob.type.startsWith('image/') }
   }
 
   return {
@@ -141,5 +159,6 @@ export const useAbuseCheckStore = defineStore('abuseCheck', () => {
     filteredCases, selectedCase, pendingCount, ruleMap, filteredReports,
     setFilter, select, applyCaseAction, updateRule, rulesInGroup,
     loadObservations, loadPairingReport, blockDevice, unblockDevice, releaseDeviceLink,
+    fetchEvidenceFile,
   }
 })

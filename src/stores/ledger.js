@@ -35,9 +35,9 @@ function mapEntry(d, informantId) {
 }
 
 export const useLedgerStore = defineStore('ledger', () => {
-  const txList      = ref([])
-  const invariant   = ref(null)
-  const currentId   = ref('')    // 目前載入的情報員 id
+  const txList    = ref([])
+  const invariant = ref(null)
+  const currentId = ref('')
 
   const filterState = ref({
     informantId: '',

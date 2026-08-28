@@ -152,7 +152,7 @@
             />
             <select v-model="filterState.actionType" class="filter-select">
               <option value="all">全部操作類型</option>
-              <option v-for="t in ACTION_TYPES" :key="t" :value="t">{{ t }}</option>
+              <option v-for="t in ACTION_TYPES" :key="t" :value="t">{{ ACTION_TYPE_LABELS[t] }}</option>
             </select>
             <div class="date-range">
               <input
@@ -188,7 +188,6 @@
                   <th>動作類型</th>
                   <th>對象</th>
                   <th>依據</th>
-                  <th>IP</th>
                 </tr>
               </thead>
               <tbody>
@@ -202,12 +201,11 @@
                   <td class="mono">{{ row.operatorId }}</td>
                   <td>
                     <span class="action-chip" :class="ACTION_CHIP_CLASS[row.actionType] ?? 'chip-secondary'">
-                      {{ row.actionType }}
+                      {{ ACTION_TYPE_LABELS[row.actionType] ?? row.actionType }}
                     </span>
                   </td>
                   <td class="mono target-col">{{ row.target }}</td>
                   <td class="reason-col">{{ row.detail }}</td>
-                  <td class="mono ip-col">{{ row.ip }}</td>
                 </tr>
               </tbody>
             </table>
@@ -240,7 +238,7 @@ import { ref, onMounted } from 'vue'
 import { storeToRefs }   from 'pinia'
 import {
   useAccountsStore,
-  ROLE_LABELS, ACTION_TYPES, ACTION_CHIP_CLASS,
+  ROLE_LABELS, ACTION_TYPES, ACTION_TYPE_LABELS, ACTION_CHIP_CLASS,
 } from '../stores/accounts'
 import { useToastStore } from '../stores/toast'
 import OpsTopBar         from '../components/layout/OpsTopBar.vue'
@@ -351,7 +349,6 @@ function exportCsv() {
     { h: '動作類型', k: 'actionType' },
     { h: '對象',     k: 'target' },
     { h: '依據',     k: 'detail' },
-    { h: 'IP',       k: 'ip' },
   ]
   const header = cols.map(c => c.h).join(',')
   const body   = filteredLog.value.map(r =>
@@ -742,7 +739,6 @@ function exportCsv() {
 .time-col  { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
 .target-col { font-size: 13px; }
 .reason-col { font-size: 13px; color: var(--text-secondary); }
-.ip-col     { font-size: 12px; color: var(--text-secondary); }
 
 /* 動作類型 chip */
 .action-chip {

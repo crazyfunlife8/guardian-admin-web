@@ -1,39 +1,49 @@
 <template>
-  <div class="login-wrap">
+  <div class="pw-wrap">
     <div class="card">
       <div class="brand">
         <span class="brand-icon">⬡</span>
-        <h1>守護者後台</h1>
+        <h1>設定新密碼</h1>
       </div>
+      <p class="notice">此帳號為初始密碼，請設定新密碼後才能使用系統。</p>
 
       <form @submit.prevent="submit">
         <div class="field">
-          <label>帳號</label>
+          <label>目前密碼</label>
           <input
-            v-model="username"
-            type="text"
-            autocomplete="username"
-            placeholder="username"
+            v-model="currentPwd"
+            type="password"
+            autocomplete="current-password"
+            placeholder="輸入目前密碼"
             :disabled="loading"
           />
         </div>
         <div class="field">
-          <label>密碼</label>
+          <label>新密碼</label>
           <input
-            v-model="password"
+            v-model="newPwd"
             type="password"
-            autocomplete="current-password"
-            placeholder="••••••••••"
+            autocomplete="new-password"
+            placeholder="至少 10 碼，含英文字母及數字"
+            :disabled="loading"
+          />
+        </div>
+        <div class="field">
+          <label>確認新密碼</label>
+          <input
+            v-model="confirmPwd"
+            type="password"
+            autocomplete="new-password"
+            placeholder="再次輸入新密碼"
             :disabled="loading"
           />
         </div>
 
-        <p v-if="changed" class="ok">密碼已變更，請重新登入</p>
         <p v-if="error" class="err">{{ error }}</p>
 
-        <button type="submit" :disabled="loading || !username || !password">
+        <button type="submit" :disabled="loading || !currentPwd || !newPwd || !confirmPwd">
           <span v-if="loading" class="spin">◌</span>
-          <span v-else>登入</span>
+          <span v-else>確認變更</span>
         </button>
       </form>
     </div>
@@ -42,27 +52,48 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
-const router   = useRouter()
-const route    = useRoute()
-const auth     = useAuthStore()
-const username = ref('')
-const password = ref('')
-const loading  = ref(false)
-const error    = ref('')
-const changed  = ref(route.query.changed === '1')
+const router = useRouter()
+const auth = useAuthStore()
+
+const currentPwd = ref('')
+const newPwd = ref('')
+const confirmPwd = ref('')
+const loading = ref(false)
+const error = ref('')
 
 async function submit() {
-  error.value   = ''
+  error.value = ''
+
+  if (newPwd.value.length < 10) {
+    error.value = '新密碼至少需要 10 個字元'
+    return
+  }
+  if (!/[a-zA-Z]/.test(newPwd.value) || !/[0-9]/.test(newPwd.value)) {
+    error.value = '新密碼需同時包含英文字母與數字'
+    return
+  }
+  if (newPwd.value === currentPwd.value) {
+    error.value = '新密碼不可與目前密碼相同'
+    return
+  }
+  if (newPwd.value !== confirmPwd.value) {
+    error.value = '兩次輸入的密碼不一致'
+    return
+  }
+
   loading.value = true
   try {
-    await auth.login(username.value, password.value)
+    await auth.changePassword(currentPwd.value, newPwd.value)
     router.replace('/')
   } catch (e) {
     const code = e.response?.data?.errorCode
-    error.value = code === 'BackendLoginFail' ? '帳號或密碼錯誤' : '登入失敗，請稍後再試'
+    if (code === 'PasswordSameAsOld') error.value = '新密碼不可與目前密碼相同'
+    else if (e.response?.status === 401) error.value = '目前密碼錯誤'
+    else if (e.response?.status === 400) error.value = e.response?.data?.message || '密碼格式不符規定'
+    else error.value = '變更失敗，請稍後再試'
   } finally {
     loading.value = false
   }
@@ -70,7 +101,7 @@ async function submit() {
 </script>
 
 <style scoped>
-.login-wrap {
+.pw-wrap {
   height: 100%;
   display: flex;
   align-items: center;
@@ -79,7 +110,7 @@ async function submit() {
 }
 
 .card {
-  width: 360px;
+  width: 400px;
   background: var(--bg-panel);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -90,7 +121,7 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
 }
 .brand-icon {
   font-size: 28px;
@@ -101,6 +132,13 @@ async function submit() {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.notice {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.5;
 }
 
 form { display: flex; flex-direction: column; gap: 20px; }
@@ -125,12 +163,6 @@ form { display: flex; flex-direction: column; gap: 20px; }
 .field input:focus { border-color: var(--accent); }
 .field input:disabled { opacity: .5; cursor: not-allowed; }
 .field input::placeholder { color: var(--mask); }
-
-.ok {
-  font-size: 13px;
-  color: var(--success, #34c27b);
-  margin-top: -8px;
-}
 
 .err {
   font-size: 13px;

@@ -8,26 +8,25 @@ const SUBTYPE_LABELS = {
   General:           '一般申訴',
 }
 
-// ticketType 使用 API 文件 3.5 定義的小寫值：appeal / report / change_request
-// CustomerService / RedemptionService 型別在 API 文件未定義，待後端確認正確值（缺口 #29）
 function typeLabel(ticketType, subtype) {
   if (ticketType === 'appeal') {
     const s = SUBTYPE_LABELS[subtype] ?? subtype ?? ''
     return s ? `申訴類・${s}` : '申訴'
   }
-  if (ticketType === 'report')            return '用戶檢舉'
-  if (ticketType === 'CustomerService')   return '一般客服'    // TODO(後端): 確認 API 實際值
-  if (ticketType === 'RedemptionService') return '兌換相關客服' // TODO(後端): 確認 API 實際值
+  if (ticketType === 'report')              return '用戶檢舉'
+  if (ticketType === 'support')             return '一般客服'
+  if (ticketType === 'redemption_support')  return '兌換相關客服'
+  if (ticketType === 'change_request')      return '資料變更申請'
   return ticketType ?? '未知'
 }
 
 // 建工單 dropdown 選項：label ↔ API { ticketType, subtype }
 export const TICKET_TYPE_MAP = [
-  { label: '一般客服',         ticketType: 'CustomerService',   subtype: null },  // TODO(後端): API 值待確認
-  { label: '兌換相關客服',     ticketType: 'RedemptionService', subtype: null },  // TODO(後端): API 值待確認
-  { label: '申訴類・信譽異議', ticketType: 'appeal',            subtype: 'ReputationDispute' },
-  { label: '申訴類・除名異議', ticketType: 'appeal',            subtype: 'RemovalDispute' },
-  { label: '用戶檢舉',         ticketType: 'report',            subtype: null },
+  { label: '一般客服',         ticketType: 'support',            subtype: null },
+  { label: '兌換相關客服',     ticketType: 'redemption_support', subtype: null },
+  { label: '申訴類・信譽異議', ticketType: 'appeal',             subtype: 'ReputationDispute' },
+  { label: '申訴類・除名異議', ticketType: 'appeal',             subtype: 'RemovalDispute' },
+  { label: '用戶檢舉',         ticketType: 'report',             subtype: null },
 ]
 
 export const TICKET_TYPES = TICKET_TYPE_MAP.map(t => t.label)
@@ -71,6 +70,29 @@ function mapListItem(d) {
   }
 }
 
+const ACTION_LABELS = {
+  ticket_create:  '建立工單',
+  ticket_claim:   '接案受理',
+  ticket_resolve: '已結案',
+  ticket_reject:  '已拒絕',
+}
+
+function parseHistoryEntry(h) {
+  const label = ACTION_LABELS[h.action] ?? h.action ?? ''
+  let detail = ''
+  try {
+    const obj = h.detail ? JSON.parse(h.detail) : {}
+    if (obj.resolution) detail = `：${obj.resolution}`
+    else if (obj.reason) detail = `：${obj.reason}`
+  } catch {}
+  return {
+    time:  h.time  ?? '',
+    text:  label + detail,
+    actor: h.actor ?? null,
+    done:  true,
+  }
+}
+
 function mapDetail(d) {
   return {
     id:          String(d.id),
@@ -83,7 +105,7 @@ function mapDetail(d) {
     resolution:  d.resolution ?? null,
     submittedAt: formatAgo(d.createdAt),
     resolvedAt:  d.resolvedAt ? new Date(d.resolvedAt).toLocaleDateString('zh-TW') : null,
-    history:     [],  // TODO(後端): TicketResponse 不含歷程，前端只能記本次操作
+    history:     (d.history ?? []).map(parseHistoryEntry),
   }
 }
 
@@ -137,7 +159,7 @@ export const useTicketsStore = defineStore('tickets', () => {
 
   async function addTicket(draft) {
     const typeDef = TICKET_TYPE_MAP.find(t => t.label === draft.type)
-      ?? { ticketType: 'CustomerService', subtype: null }
+      ?? { ticketType: 'support', subtype: null }
 
     const relatedType = draft.relatedEventId?.trim() ? 'Event' : null
     const relatedId   = draft.relatedEventId?.trim()
@@ -167,7 +189,6 @@ export const useTicketsStore = defineStore('tickets', () => {
       _patchStatus(id, 'Resolved')
       if (_cache[id]) _cache[id].resolution = reason
     } else if (action === 'reply') {
-      // TODO(後端): TicketResponse 不含歷程；回覆只記錄本地
       if (_cache[id]) {
         _cache[id].history.push({
           time:  new Date().toLocaleString('zh-TW').slice(0, 16),

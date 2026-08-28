@@ -66,6 +66,33 @@
               <div class="kpi-label">每件情報成本（積分）</div>
             </div>
           </div>
+
+          <!-- 逐情報員明細 -->
+          <template v-if="supply.informants?.length">
+            <div class="section-title">情報員貢獻明細</div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>情報員編號</th>
+                    <th class="right">接單數</th>
+                    <th class="right">完成率</th>
+                    <th class="right">積分發放</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(inf, i) in supply.informants" :key="inf.informantNo" :class="{ odd: i % 2 === 1 }">
+                    <td class="mono">{{ inf.informantNo }}</td>
+                    <td class="mono right">{{ inf.acceptCount }}</td>
+                    <td class="mono right" :class="rateColor((inf.completionRate ?? 0) * 100)">
+                      {{ inf.completionRate != null ? ((inf.completionRate ?? 0) * 100).toFixed(1) + '%' : '—' }}
+                    </td>
+                    <td class="mono right accent">{{ (inf.totalPoints ?? 0).toLocaleString() }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
         </template>
         <div v-else class="empty-state">請選擇期間後按查詢</div>
       </div>
@@ -337,6 +364,16 @@ onMounted(() => {
 }
 .kpi-val   { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--text-primary); }
 .kpi-label { font-size: 12px; color: var(--text-secondary); }
+
+/* 小節標題 */
+.section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-top: 4px;
+}
 
 /* 資料表 */
 .table-wrap {

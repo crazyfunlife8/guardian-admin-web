@@ -79,9 +79,8 @@ export const useParamsStore = defineStore('params', () => {
     const param = paramList.value.find(p => p.key === key)
     if (!param) return
     const oldValue = param.value
-    // TODO(後端): PUT /api/backend/parameters/{key} 的 request body 在 OpenAPI 中為 {}（未定義格式）
-    // 暫時送 { value: String(value) }，需後端確認正確格式
-    await client.put(`/api/backend/parameters/${key}`, { value: String(value) })
+    // OpenAPI: body 為 raw JSON 值（數字），不是包裹物件
+    await client.put(`/api/backend/parameters/${key}`, Number(value))
     param.value = Number(value)
     const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
     param.history.push({ time: now, from: oldValue, to: Number(value), reason, actor: '後台人員' })

@@ -9,7 +9,7 @@
         title="審核佇列"
         :count="filteredApps.length"
         :filters="FILTERS"
-        :active-filter="filterStatus"
+        :active-filter="filterState"
         @filter-change="store.setFilter"
       >
         <Op3QueueItem
@@ -42,7 +42,7 @@ import Op3Detail    from '../components/op3/Op3Detail.vue'
 import Toast        from '../components/shared/Toast.vue'
 
 const store = useReviewStore()
-const { filteredApps, selectedId, filterStatus } = storeToRefs(store)
+const { filteredApps, selectedId, filterState } = storeToRefs(store)
 
 onMounted(() => store.load())
 

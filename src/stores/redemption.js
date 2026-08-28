@@ -11,6 +11,7 @@ export const STATUS_LABELS = {
   Deducted:      '已結清',
   Rejected:      '已拒',
   Held:          '掛起（停權）',
+  OwnerDenied:   '本人否認',
 }
 export const STATUS_VARIANTS = {
   Applied:       'wait',
@@ -20,6 +21,7 @@ export const STATUS_VARIANTS = {
   Deducted:      'ok',
   Rejected:      'danger',
   Held:          'hold',
+  OwnerDenied:   'danger',
 }
 
 export const SOURCE_LABELS = {
@@ -36,26 +38,27 @@ export const FILTERS = [
 ]
 
 function mapOrder(d) {
+  const ib = d.informantBalance ?? {}
   return {
-    id:          String(d.id),
-    status:      d.status ?? 'PendingReview',
-    source:      SOURCE_LABELS[d.source] ?? d.source ?? '',
-    informantId: d.informantId ?? null,   // int64；OP-4 路由用
+    id:           String(d.id),
+    status:       d.status ?? 'PendingReview',
+    source:       SOURCE_LABELS[d.source] ?? d.source ?? '',
+    informantId:  d.informantId ?? null,
+    informantNo:  d.informantNo ?? null,
     amountPoints: d.amountPoints ?? 0,
-    items:       d.items ?? '',           // JSON string；可嘗試 JSON.parse 顯示
-    voucherInfo: d.voucherInfo ?? null,
-    createdAt:   d.createdAt ? new Date(d.createdAt).toLocaleString('zh-TW') : '',
-    disbursedAt: d.disbursedAt ? new Date(d.disbursedAt).toLocaleString('zh-TW') : null,
-    history:     [],   // TODO(後端): RedemptionResponse 不含歷程，前端只記本次操作
-    // 以下欄位 API 未提供，待後端在兌換明細端點補充
-    balance:       null,   // TODO(後端): 需要另行呼叫情報員餘額端點
-    frozen:        null,
-    deferred:      null,
-    accountStatus: null,   // TODO(後端): 情報員帳號狀態
-    maskedAccount: null,   // TODO(後端): 遮罩收款帳戶
-    realAccount:   null,
-    limitCheck:    null,   // TODO(後端): 單筆上限驗算
-    denialStatus:  null,   // TODO(後端): 本人否認標記
+    items:        d.items ?? '',
+    voucherInfo:  d.voucherInfo ?? null,
+    createdAt:    d.createdAt ? new Date(d.createdAt).toLocaleString('zh-TW') : '',
+    time:         d.createdAt ? new Date(d.createdAt).toLocaleString('zh-TW') : '',
+    disbursedAt:  d.disbursedAt ? new Date(d.disbursedAt).toLocaleString('zh-TW') : null,
+    // 以下欄位由 GET /api/backend/redemptions/{id} 明細端點回傳（後端補充文件）
+    limitCheck:    d.limitCheck ?? null,
+    deniedByOwner: d.deniedByOwner ?? false,
+    informantBalance: {
+      available: ib.available ?? null,
+      frozen:    ib.frozen ?? null,
+      deferred:  ib.deferred ?? null,
+    },
   }
 }
 
@@ -120,13 +123,15 @@ export const useRedemptionStore = defineStore('redemption', () => {
       _patchStatus(id, 'Disbursed', data)
       if (_cache[id]) _cache[id].voucherInfo = reason
     } else if (action === 'failBack') {
-      // 發放失敗解凍：重新呼叫 verify 是不對的；可能需後端另加端點
-      // 暫時用 reject 端點（需後端確認）
-      const { data } = await client.post(`/api/backend/redemptions/${id}/reject`, { reason: `failBack: ${reason}` })
-      _patchStatus(id, 'PendingReview', data)
+      // 規格確認：reject 端點已涵蓋「發放失敗」情境（已核對者解凍 frozen→available），結果狀態為 Rejected
+      const { data } = await client.post(`/api/backend/redemptions/${id}/reject`, { reason })
+      _patchStatus(id, 'Rejected', data)
     } else if (action === 'deduct') {
       const { data } = await client.post(`/api/backend/redemptions/${id}/deduct`)
       _patchStatus(id, 'Deducted', data)
+    } else if (action === 'rejectHeld') {
+      const { data } = await client.post(`/api/backend/redemptions/${id}/reject`, { reason })
+      _patchStatus(id, 'Rejected', data)
     }
   }
 

@@ -63,16 +63,7 @@
               v-model="draft.relatedEventId"
               class="mf-input mono"
               type="text"
-              placeholder="如 EV-001（選填）"
-            />
-          </div>
-          <div class="mf-row">
-            <label class="mf-label">關聯情報員 ID</label>
-            <input
-              v-model="draft.relatedInformantId"
-              class="mf-input mono"
-              type="text"
-              placeholder="如 GI-0042（選填）"
+              placeholder="數字 ID（選填）"
             />
           </div>
         </div>
@@ -106,10 +97,10 @@ const { filteredTickets, selectedId, filterStatus } = storeToRefs(store)
 onMounted(() => store.load())
 
 const showModal = ref(false)
-const draft     = ref({ type: '一般客服', description: '', relatedEventId: '', relatedInformantId: '' })
+const draft     = ref({ type: '一般客服', description: '', relatedEventId: '' })
 
 function openNewTicketModal() {
-  draft.value = { type: '一般客服', description: '', relatedEventId: '', relatedInformantId: '' }
+  draft.value = { type: '一般客服', description: '', relatedEventId: '' }
   showModal.value = true
 }
 

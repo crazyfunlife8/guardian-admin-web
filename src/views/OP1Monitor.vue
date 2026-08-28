@@ -27,6 +27,7 @@ import OpsMenu   from '../components/op1/OpsMenu.vue'
 import { useLogsStore }      from '../stores/logs'
 import { useSourcesStore }   from '../stores/sources'
 import { useDashboardStore } from '../stores/dashboard'
+import { useAuthStore }      from '../stores/auth'
 
 const router       = useRouter()
 const menuOpen     = ref(false)
@@ -36,10 +37,12 @@ const logCollapsed = ref(false)
 const logsStore    = useLogsStore()
 const sourcesStore = useSourcesStore()
 const dashStore    = useDashboardStore()
+const authStore    = useAuthStore()
 
 watch(theaterMode, (val) => { if (val) logCollapsed.value = true })
 
 onMounted(() => {
+  if (!authStore.user) authStore.fetchMe()
   dashStore.startPoll()
   logsStore.connect()
   sourcesStore.startPoll()

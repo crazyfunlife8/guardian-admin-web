@@ -9,7 +9,7 @@
           v-model="filterState.informantId"
           type="text"
           class="filter-input id-input"
-          placeholder="情報員 ID（如 GI-0042）"
+          placeholder="情報員數字 ID（整數，非編號）"
           @keyup.enter="loadByInformantId"
         />
         <button class="clear-btn" title="查詢此情報員帳本" @click="loadByInformantId">查詢</button>
@@ -48,7 +48,7 @@
         <div class="credit-fields">
           <div class="credit-field">
             <label class="credit-label">情報員 ID</label>
-            <input v-model="creditData.informantId" class="filter-input mono" placeholder="GI-XXXX" />
+            <input v-model="creditData.informantId" class="filter-input mono" placeholder="數字 ID" />
           </div>
           <div class="credit-field">
             <label class="credit-label">積分數額</label>

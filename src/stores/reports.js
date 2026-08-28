@@ -10,8 +10,8 @@ export const useReportsStore = defineStore('reports', () => {
   async function loadSupplyReport(from, to) {
     try {
       const qs = new URLSearchParams()
-      if (from) qs.set('from', from)
-      if (to)   qs.set('to', to)
+      if (from) qs.set('fromUtc', from)
+      if (to)   qs.set('toUtc', to)
       const { data } = await client.get(`/api/backend/reports/supply?${qs}`)
       supplyReport.value = data
     } catch (err) {
@@ -26,8 +26,8 @@ export const useReportsStore = defineStore('reports', () => {
 
   async function loadAnnualPayout(year) {
     try {
-      annualPayoutYear.value = year ?? annualPayoutRows.value
-      const { data } = await client.get(`/api/backend/reports/annual-payout?year=${year ?? annualPayoutYear.value}`)
+      annualPayoutYear.value = year ?? annualPayoutYear.value
+      const { data } = await client.get(`/api/backend/reports/annual-payout?year=${annualPayoutYear.value}`)
       annualPayoutRows.value = Array.isArray(data) ? data : []
     } catch (err) {
       console.error('loadAnnualPayout failed', err)
@@ -36,7 +36,17 @@ export const useReportsStore = defineStore('reports', () => {
 
   async function downloadAnnualPayoutCsv(year) {
     const y = year ?? annualPayoutYear.value
-    window.open(`/api/backend/reports/annual-payout.csv?year=${y}`, '_blank')
+    try {
+      const { data } = await client.get(`/api/backend/reports/annual-payout.csv?year=${y}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(data)
+      const a   = document.createElement('a')
+      a.href     = url
+      a.download = `年度給付彙整_${y}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('downloadAnnualPayoutCsv failed', err)
+    }
   }
 
   // ── 機率回測（OP-11）──────────────────────────────────────────────────────

@@ -14,7 +14,6 @@
                 <span class="item-id mono">{{ hs.id }}</span>
                 <span class="item-name">{{ hs.name }}</span>
                 <span class="item-sub mono">({{ hs.lat }}, {{ hs.lng }})</span>
-                <span class="item-sub">半徑 {{ hs.radius }}m</span>
               </div>
               <div class="item-btns">
                 <button class="row-btn" :disabled="hsAddingNew || hsEditingId !== null" @click="startHsEdit(hs)">編輯</button>
@@ -32,11 +31,6 @@
                 <input v-model.number="hsDraft.lat" type="number" step="0.0001" class="form-input short mono" />
                 <label class="form-label ml">經度</label>
                 <input v-model.number="hsDraft.lng" type="number" step="0.0001" class="form-input short mono" />
-              </div>
-              <div class="form-row">
-                <label class="form-label">半徑（m）</label>
-                <input v-model.number="hsDraft.radius" type="number" step="50" min="50" class="form-input short mono" />
-                <span class="unit-text">m</span>
               </div>
               <div class="form-actions">
                 <button class="row-btn ok" @click="requestHsUpdate(hs.id)">儲存</button>
@@ -57,11 +51,6 @@
                 <input v-model.number="hsDraft.lat" type="number" step="0.0001" class="form-input short mono" />
                 <label class="form-label ml">經度</label>
                 <input v-model.number="hsDraft.lng" type="number" step="0.0001" class="form-input short mono" />
-              </div>
-              <div class="form-row">
-                <label class="form-label">半徑（m）</label>
-                <input v-model.number="hsDraft.radius" type="number" step="50" min="50" class="form-input short mono" />
-                <span class="unit-text">m</span>
               </div>
               <div class="form-actions">
                 <button class="row-btn ok" @click="requestHsAdd">儲存</button>
@@ -90,22 +79,28 @@
       <InfoCard title="合作來源主檔">
         <p class="section-desc">D5 人工事件登錄時引用此主檔選來源，授權範圍自動帶入，不逐筆填寫。</p>
         <div class="item-list">
-          <div v-for="sm in store.sourceMasters" :key="sm.id" class="item-row">
+          <div v-for="sm in store.sourceMasters" :key="sm.id" class="item-row" :class="{ 'deleted-row': sm.deleted }">
             <!-- 顯示態 -->
             <template v-if="smEditingId !== sm.id">
               <div class="item-info sm-info">
                 <span class="item-id mono">{{ sm.id }}</span>
-                <span class="item-name">{{ sm.name }}</span>
-                <div class="scope-chips">
+                <span class="item-name" :class="{ 'deleted-name': sm.deleted }">{{ sm.name }}</span>
+                <span v-if="sm.deleted" class="item-badge badge-dim">已停用</span>
+                <div v-else class="scope-chips">
                   <span v-for="sc in sm.scopes" :key="sc" class="scope-chip">
                     {{ SCOPE_LABELS[sc] }}
                   </span>
                 </div>
-                <span class="sm-purpose">{{ sm.purpose }}</span>
+                <span v-if="!sm.deleted" class="sm-purpose">{{ sm.purpose }}</span>
               </div>
               <div class="item-btns">
-                <button class="row-btn" :disabled="smAddingNew || smEditingId !== null" @click="startSmEdit(sm)">編輯</button>
-                <button class="row-btn danger" :disabled="smAddingNew || smEditingId !== null" @click="requestSmDelete(sm)">刪除</button>
+                <template v-if="sm.deleted">
+                  <button class="row-btn ok" :disabled="smAddingNew || smEditingId !== null" @click="requestSmEnable(sm)">啟用</button>
+                </template>
+                <template v-else>
+                  <button class="row-btn" :disabled="smAddingNew || smEditingId !== null" @click="startSmEdit(sm)">編輯</button>
+                  <button class="row-btn danger" :disabled="smAddingNew || smEditingId !== null" @click="requestSmDelete(sm)">停用</button>
+                </template>
               </div>
             </template>
             <!-- 編輯態 -->
@@ -236,7 +231,7 @@ import Toast         from '../components/shared/Toast.vue'
 const store = useStaticDataStore()
 const toast = useToastStore()
 
-onMounted(() => { store.loadHotspots(); store.loadSources() })
+onMounted(() => { store.loadHotspots(); store.loadSources(); store.loadBoundary() })
 
 // ── 操作依據選項 ─────────────────────────────────────────────
 const DATA_REASONS = [
@@ -292,11 +287,16 @@ function onConfirm(reason) {
       break
     case 'sm-delete':
       store.deleteSource(op.id)
-      toast.success(`已刪除合作來源「${op.name}」・已留跡`)
+      toast.success(`已停用合作來源「${op.name}」・已留跡`)
+      break
+    case 'sm-enable':
+      store.enableSource(op.id)
+      toast.success(`已啟用合作來源「${op.name}」・已留跡`)
       break
     case 'boundary-update':
       store.updateBoundary(op.geojson)
-      toast.success('已更新服務區域邊界・已留跡')
+        .then(() => toast.success('已更新服務區域邊界・已留跡'))
+        .catch(() => toast.error('更新失敗，請稍後重試'))
       boundaryEditing.value = false
       break
   }
@@ -308,19 +308,19 @@ function onConfirm(reason) {
 // ── § 熱點區域 ─────────────────────────────────────────────
 const hsEditingId = ref(null)
 const hsAddingNew = ref(false)
-const hsDraft     = ref({ name: '', lat: 25.0, lng: 121.5, radius: 500 })
+const hsDraft     = ref({ name: '', lat: 25.0, lng: 121.5 })
 const hsMapOpen   = ref(false)
 
 function startHsEdit(hs) {
   hsAddingNew.value = false
   hsEditingId.value = hs.id
-  hsDraft.value = { name: hs.name, lat: hs.lat, lng: hs.lng, radius: hs.radius }
+  hsDraft.value = { name: hs.name, lat: hs.lat, lng: hs.lng, enabled: hs.enabled }
 }
 
 function startHsAdd() {
   hsEditingId.value = null
   hsAddingNew.value = true
-  hsDraft.value = { name: '', lat: 25.0, lng: 121.5, radius: 500 }
+  hsDraft.value = { name: '', lat: 25.0, lng: 121.5 }
 }
 
 function requestHsUpdate(id) {
@@ -329,7 +329,7 @@ function requestHsUpdate(id) {
   pendingOp.value = { type: 'hs-update', id, data: d }
   openDialog({
     title: `確認更新熱點「${d.name}」？`,
-    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b>${d.radius}m</b>`,
+    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>`,
     reasons: DATA_REASONS,
   })
 }
@@ -340,7 +340,7 @@ function requestHsAdd() {
   pendingOp.value = { type: 'hs-add', data: d }
   openDialog({
     title: `確認新增熱點「${d.name}」？`,
-    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>，半徑：<b>${d.radius}m</b>`,
+    body:  `座標：<b style="font-family:var(--mono)">(${d.lat}, ${d.lng})</b>`,
     reasons: DATA_REASONS,
   })
 }
@@ -398,8 +398,17 @@ function requestSmAdd() {
 function requestSmDelete(sm) {
   pendingOp.value = { type: 'sm-delete', id: sm.id, name: sm.name }
   openDialog({
-    title: `確認刪除合作來源「${sm.name}」？`,
-    body:  '刪除後 D5 登錄時將無法選此來源。',
+    title: `確認停用合作來源「${sm.name}」？`,
+    body:  '停用後 D5 登錄時將無法選此來源，可日後重新啟用。',
+    reasons: DATA_REASONS,
+  })
+}
+
+function requestSmEnable(sm) {
+  pendingOp.value = { type: 'sm-enable', id: sm.id, name: sm.name }
+  openDialog({
+    title: `確認重新啟用合作來源「${sm.name}」？`,
+    body:  '啟用後 D5 登錄時可再次選用此來源。',
     reasons: DATA_REASONS,
   })
 }
@@ -633,6 +642,8 @@ function requestBoundaryUpdate() {
 /* ── § 合作來源主檔 ── */
 .sm-info { flex-direction: column; align-items: flex-start; gap: 5px; }
 .sm-purpose { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.deleted-row { opacity: .55; }
+.deleted-name { text-decoration: line-through; color: var(--text-secondary); }
 
 .scope-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .scope-chip {

@@ -12,17 +12,30 @@
 
     <!-- 申請人資料（個資欄位來自 ApplicationDetail，需點選才載入） -->
     <InfoCard title="申請人資料">
-      <KeyValue label="姓名"     :value="app.name || '載入中…'" />
-      <KeyValue label="手機"     :value="app.phone || '載入中…'" mono />
-      <KeyValue label="身分證字號" :value="app.idNo || '載入中…'" mono />
-      <KeyValue label="收款帳戶" :value="app.payoutAccount || '載入中…'" mono />
-      <KeyValue label="電子郵件" :value="app.email || '載入中…'" />
+      <KeyValue label="姓名"     :value="app.name || bindingPlaceholder" />
+      <KeyValue label="手機"     :value="app.phone || '－'" mono />
+      <KeyValue label="身分證字號" :value="app.idNo || bindingPlaceholder" mono />
+      <KeyValue label="收款帳戶" :value="app.payoutAccount || bindingPlaceholder" mono />
+      <KeyValue label="電子郵件" :value="app.email || bindingPlaceholder" />
       <KeyValue label="職業類型" :value="app.qualLabel || app.qualType" />
       <KeyValue label="提交時間" :value="app.submittedAt" mono />
-      <!-- TODO(後端): plateSuffix（車牌末碼）和 zone（服務區域）ApplicationDetail 未定義，已移除 -->
     </InfoCard>
 
-    <!-- 動作列（僅 pending 顯示） -->
+    <!-- 職業佐證（管理員可查看，每次調閱會寫稽核紀錄） -->
+    <InfoCard v-if="isAdmin" title="職業佐證">
+      <template v-if="app.hasCertFile">
+        <div v-if="certBlobUrl" class="cert-preview">
+          <img :src="certBlobUrl" alt="職業佐證" />
+        </div>
+        <p v-else-if="certError" class="cert-note danger">{{ certError }}</p>
+        <button v-else class="btn-cert" :disabled="certLoading" @click="loadCertFile">
+          {{ certLoading ? '載入中…' : '查看職業佐證（每次調閱均留稽核跡）' }}
+        </button>
+      </template>
+      <p v-else class="cert-note">申請人尚未上傳佐證檔案</p>
+    </InfoCard>
+
+    <!-- 動作列（僅 Pending 顯示） -->
     <ActionBar v-if="app.state === 'pending'">
       <button class="btn primary" @click="openDialog('approve')">審核通過</button>
       <button class="btn danger"  @click="openDialog('reject')">拒絕申請</button>
@@ -47,10 +60,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { storeToRefs }   from 'pinia'
 import { useReviewStore } from '../../stores/review'
 import { useToastStore }  from '../../stores/toast'
+import { useAuthStore }   from '../../stores/auth'
 import StatusBadge     from '../shared/StatusBadge.vue'
 import StateMachineBar from '../shared/StateMachineBar.vue'
 import InfoCard        from '../shared/InfoCard.vue'
@@ -59,11 +73,47 @@ import ActionBar       from '../shared/ActionBar.vue'
 import StatusTimeline  from '../shared/StatusTimeline.vue'
 import ConfirmDialog   from '../shared/ConfirmDialog.vue'
 
-const store  = useReviewStore()
-const toast  = useToastStore()
+const store     = useReviewStore()
+const toast     = useToastStore()
+const authStore = useAuthStore()
 const { selectedApp: app } = storeToRefs(store)
 
-// TODO(後端): state enum 值未在 OpenAPI 中定義，以下 key 為前端推測值，需後端以 enum 明確定義
+const isAdmin = computed(() => authStore.user?.role === 'Admin')
+
+const certBlobUrl = ref(null)
+const certLoading = ref(false)
+const certError   = ref('')
+
+function revokeCert() {
+  if (certBlobUrl.value) {
+    URL.revokeObjectURL(certBlobUrl.value)
+    certBlobUrl.value = null
+  }
+}
+
+watch(() => app.value?.id, () => {
+  revokeCert()
+  certError.value = ''
+})
+
+onUnmounted(revokeCert)
+
+async function loadCertFile() {
+  certLoading.value = true
+  certError.value   = ''
+  try {
+    certBlobUrl.value = await store.fetchCertFile(app.value.id)
+  } catch (e) {
+    certError.value = e.message === '404' ? '檔案不存在（已從 Storage 移除）' : '載入失敗，請稍後再試'
+  } finally {
+    certLoading.value = false
+  }
+}
+
+const bindingPlaceholder = computed(() =>
+  ['pending', 'approved_pending'].includes(app.value?.state) ? '待申請人完成綁定' : '－'
+)
+
 const STATUS_LABELS   = { pending: '待審核', approved_pending: '已核准待綁定', active: '已開通', rejected: '已拒絕' }
 const STATUS_VARIANTS = { pending: 'wait',   approved_pending: 'info',          active: 'ok',      rejected: 'danger' }
 
@@ -86,14 +136,14 @@ const isTerminated = computed(() => app.value?.state !== 'pending')
 const terminatedNote = computed(() => {
   switch (app.value?.state) {
     case 'approved_pending': return '已核准・等待申請人完成四項必綁'
-    case 'active':           return '已開通・申請流程已完結'
-    case 'rejected':         return '已拒絕・此申請已終結'
-    default:                 return null
+    case 'active':   return '已開通・申請流程已完結'
+    case 'rejected': return '已拒絕・此申請已終結'
+    default:         return null
   }
 })
 
 const steps = computed(() => {
-  const s = app.value?.state ?? 'pending'  // TODO(後端): state enum 值未在 OpenAPI 中定義
+  const s = app.value?.state ?? 'pending'
   if (s === 'rejected') {
     return [
       { label: '提交申請', state: 'done' },
@@ -103,9 +153,9 @@ const steps = computed(() => {
   }
   return [
     { label: '提交申請',     state: 'done' },
-    { label: '審核中',       state: s === 'pending'          ? 'now'    : 'done'    },
-    { label: '已核准待綁定', state: s === 'approved_pending' ? 'now'    : s === 'active' ? 'done' : 'pending' },
-    { label: '已開通',       state: s === 'active'           ? 'now'    : 'pending' },
+    { label: '審核中',       state: s === 'pending'   ? 'now' : 'done'    },
+    { label: '已核准待綁定', state: s === 'approved_pending'  ? 'now' : s === 'active' ? 'done' : 'pending' },
+    { label: '已開通',       state: s === 'active'    ? 'now' : 'pending' },
   ]
 })
 
@@ -205,4 +255,30 @@ async function onConfirm(reason) {
 .btn.primary:hover { filter: brightness(1.1); }
 .btn.danger  { color: var(--danger); border-color: var(--danger); }
 .btn.danger:hover { background: rgba(229, 96, 76, .08); }
+
+.btn-cert {
+  font-size: 13px;
+  color: var(--accent);
+  background: none;
+  border: 1px dashed var(--accent);
+  border-radius: 7px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: background .12s;
+}
+.btn-cert:hover:not(:disabled) { background: rgba(88,193,212,.08); }
+.btn-cert:disabled { opacity: .5; cursor: not-allowed; }
+
+.cert-preview img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.cert-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.cert-note.danger { color: var(--danger); }
 </style>

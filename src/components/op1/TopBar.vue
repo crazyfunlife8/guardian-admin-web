@@ -21,17 +21,19 @@
 
     <div class="top-right" :class="{ 'theater-right': theaterMode }">
       <span class="clock" :class="{ 'clock-theater': theaterMode }">{{ clock }}</span>
-      <span v-if="!theaterMode" class="account">值班：<b>{{ user?.username ?? '—' }}</b>・{{ roleLabel }}</span>
+      <span v-if="!theaterMode" class="account">值班：<b>{{ user ? `#${user.accountId}` : '—' }}</b>・{{ roleLabel }}</span>
       <button class="theater-btn" @click="$emit('theater-toggle')">
         {{ theaterMode ? '✕ 退出掛牆' : '🖵 掛牆' }}
       </button>
       <button v-if="!theaterMode" class="menu-btn" @click="$emit('menu-click')">☰ 作業選單</button>
+      <button v-if="!theaterMode" class="logout-btn" @click="handleLogout">登出</button>
     </div>
   </header>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter }       from 'vue-router'
 import { useSourcesStore } from '../../stores/sources'
 import { useAuthStore }    from '../../stores/auth'
 import { storeToRefs } from 'pinia'
@@ -40,7 +42,14 @@ defineProps({ theaterMode: { type: Boolean, default: false } })
 defineEmits(['source-click', 'menu-click', 'theater-toggle'])
 
 const { sources } = storeToRefs(useSourcesStore())
-const { user }    = storeToRefs(useAuthStore())
+const auth        = useAuthStore()
+const { user }    = storeToRefs(auth)
+const router      = useRouter()
+
+async function handleLogout() {
+  await auth.logout()
+  router.push('/login')
+}
 
 const ROLE_LABELS = { Operator: '營運員', Admin: '管理員', Supervisor: '督導' }
 const roleLabel = computed(() => ROLE_LABELS[user.value?.role] ?? user.value?.role ?? '—')
@@ -121,7 +130,7 @@ onUnmounted(() => clearInterval(timer))
 .account { font-size: 13px; color: var(--text-secondary); }
 .account b { color: var(--text-primary); font-weight: 500; }
 
-.menu-btn, .theater-btn {
+.menu-btn, .theater-btn, .logout-btn {
   background: none;
   border: 1px solid var(--line);
   color: var(--text-secondary);
@@ -135,6 +144,7 @@ onUnmounted(() => clearInterval(timer))
   background: var(--bg-panel-raised);
   color: var(--text-primary);
 }
+.logout-btn:hover { color: var(--danger); border-color: var(--danger); }
 
 @keyframes breath {
   0%, 100% { opacity: 1; }

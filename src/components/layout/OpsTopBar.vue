@@ -4,15 +4,31 @@
     <span class="crumb">作業模式 ／ <b>{{ title }}</b></span>
     <div class="top-right">
       <span class="clock">{{ clock }}</span>
-      <span class="account">值班：<b>OP-07</b>・營運員</span>
+      <span class="account">值班：<b>{{ user ? `#${user.accountId}` : '—' }}</b>・{{ roleLabel }}</span>
+      <button class="logout-btn" @click="handleLogout">登出</button>
     </div>
   </header>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
+import { storeToRefs } from 'pinia'
 
 defineProps({ title: { type: String, required: true } })
+
+const router   = useRouter()
+const auth     = useAuthStore()
+const { user } = storeToRefs(auth)
+
+const ROLE_LABELS = { Operator: '營運員', Admin: '管理員', Supervisor: '督導' }
+const roleLabel = computed(() => ROLE_LABELS[user.value?.role] ?? user.value?.role ?? '—')
+
+async function handleLogout() {
+  await auth.logout()
+  router.push('/login')
+}
 
 const clock = ref('')
 function tick() {
@@ -56,4 +72,17 @@ onUnmounted(() => clearInterval(timer))
 .clock { font-family: var(--mono); font-size: 18px; font-weight: 600; }
 .account { font-size: 13px; color: var(--text-secondary); }
 .account b { color: var(--text-primary); font-weight: 500; }
+
+.logout-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: color .12s, border-color .12s;
+}
+.logout-btn:hover { color: var(--danger); border-color: var(--danger); }
 </style>

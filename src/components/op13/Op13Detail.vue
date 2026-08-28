@@ -15,8 +15,8 @@
     <InfoCard title="工單內容">
       <p class="description">{{ ticket.content }}</p>
       <KeyValue label="關聯事件">
-        <RouterLink v-if="ticket.relatedType === 'Event' && ticket.relatedId" :to="`/op2/E-${ticket.relatedId}`" class="id-link">
-          E-{{ ticket.relatedId }} →
+        <RouterLink v-if="ticket.relatedType === 'Event' && ticket.relatedId" :to="`/op2/${ticket.relatedId}`" class="id-link">
+          #{{ ticket.relatedId }} →
         </RouterLink>
         <span v-else class="none-text">無</span>
       </KeyValue>
@@ -141,7 +141,7 @@ const dialog = ref({ open: false, action: '', title: '', body: '', reasons: [] }
 const DIALOG_CONFIG = {
   close: {
     title:   '確認結案？',
-    body:    (t) => `工單 ${t.id}（${t.type}）將標記結案，請選擇結案依據。`,
+    body:    (t) => `工單 ${t.id}（${t.typeLabel}）將標記結案，請選擇結案依據。`,
     reasons: CLOSE_REASONS,
   },
 }

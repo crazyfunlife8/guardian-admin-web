@@ -3,14 +3,16 @@ import { defineStore } from 'pinia'
 import client from '../api/client'
 
 function mapProfile(data) {
+  const b = data.balance ?? {}
+  const ts = data.taskSummary ?? null
   return {
     id:          String(data.id),
     informantNo: data.informantNo ?? '',
-    state:       data.state ?? '',              // TODO(後端): state enum 值未在 OpenAPI 中定義
+    state:       data.state ?? '',
     reputation: {
       score:        data.reputationScore ?? null,
-      accuracy30d:  null,                       // TODO(後端): profile endpoint 未提供
-      falseReports: 0,                          // TODO(後端): profile endpoint 未提供
+      accuracy30d:  null,
+      falseReports: 0,
     },
     qualType:   data.qualType ?? '',
     qualStatus: data.qualStatus ?? '',
@@ -19,17 +21,22 @@ function mapProfile(data) {
       text:  `信譽分 ${h.delta >= 0 ? '+' : ''}${h.delta}（${h.reason ?? ''}）`,
       actor: null,
     })),
-    // 以下欄位 API 尚未提供
-    name:        '',          // TODO(後端): profile endpoint 不含個資明文
-    phoneSuffix: '',          // TODO(後端): 待後端補充個資摘要
-    idSuffix:    '',
+    nameMasked:  data.nameMasked  ?? '',
+    phoneMasked: data.phoneMasked ?? '',
+    name:        '',
+    phone:       '',
+    idNo:        '',
     bankAccount: '',
     joinedAt:    '',
-    taskSummary: null,        // TODO(後端): 待補端點（#8）
-    // BalanceResponse 欄位：available/frozen/deferred（#12）
-    balance: { available: 0, frozen: 0, deferred: 0 },       // TODO(後端): profile endpoint 尚未包含 balance
-    appealHistory: [],        // TODO(後端): 待補端點（#9）
-    tags: { system: [] },     // TODO(後端): 待補端點（#11）
+    taskSummary: ts ? {
+      monthlyCount:   ts.acceptCount ?? 0,
+      completionRate: ts.completionRate ?? null,
+      abandonCount:   ts.abandonCount ?? 0,
+      auditResult:    ts.auditResult  ?? null,
+    } : null,
+    balance: { available: b.available ?? 0, frozen: b.frozen ?? 0, deferred: b.deferred ?? 0 },
+    appealHistory: (data.appealHistory ?? []),
+    tags: { system: [] },
   }
 }
 
@@ -42,18 +49,20 @@ export const useInformantsStore = defineStore('informants', () => {
     return _cache[id] ?? null
   }
 
-  async function search(q = '') {
+  // type: 'no'（情報員編號） | 'phone'（完整手機號 HMAC 比對）
+  async function search(q = '', type = 'no') {
     if (!q.trim()) {
       informants.value = []
       return
     }
     try {
       searching.value = true
-      const { data } = await client.get('/api/backend/informants', { params: { q } })
+      const { data } = await client.get('/api/backend/informants', { params: { q, type } })
       informants.value = (data ?? []).map(d => ({
-        id:       d.informantNo ?? String(d.id),
-        status:   d.state ?? '',
-        joinedAt: d.joinedAt ? new Date(d.joinedAt).toLocaleDateString('zh-TW') : '',
+        id:          String(d.id),
+        informantNo: d.informantNo ?? '',
+        status:      d.state ?? '',
+        joinedAt:    d.joinedAt ? new Date(d.joinedAt).toLocaleDateString('zh-TW') : '',
       }))
     } catch {
       informants.value = []
@@ -78,7 +87,7 @@ export const useInformantsStore = defineStore('informants', () => {
   async function suspend(id, reason) {
     await client.post(`/api/backend/informants/${id}/suspend`, { reason })
     if (_cache[id]) {
-      _cache[id].state = 'suspended'
+      _cache[id].state = 'Suspended'
       _cache[id].reviewHistory.push({ time: _now(), text: `帳號停權（${reason}）`, actor: '後台人員' })
     }
   }
@@ -86,7 +95,7 @@ export const useInformantsStore = defineStore('informants', () => {
   async function reinstate(id, reason) {
     await client.post(`/api/backend/informants/${id}/reinstate`, { reason })
     if (_cache[id]) {
-      _cache[id].state = 'active'
+      _cache[id].state = 'Active'
       _cache[id].reviewHistory.push({ time: _now(), text: `帳號恢復（${reason}）`, actor: '後台人員' })
     }
   }
@@ -94,8 +103,39 @@ export const useInformantsStore = defineStore('informants', () => {
   async function remove(id, reason) {
     await client.post(`/api/backend/informants/${id}/remove`, { reason })
     if (_cache[id]) {
-      _cache[id].state = 'removed'
+      _cache[id].state = 'Removed'
       _cache[id].reviewHistory.push({ time: _now(), text: `帳號除名（${reason}）`, actor: '後台人員' })
+    }
+  }
+
+  async function settle(id) {
+    await client.post(`/api/backend/informants/${id}/settle`)
+    if (_cache[id]) _cache[id].state = 'Cleared'
+  }
+
+  async function debit(id, amount, reason) {
+    await client.post(`/api/backend/informants/${id}/debit`, { amount, reason })
+    if (_cache[id]) {
+      _cache[id].balance.available = Math.max(0, _cache[id].balance.available - amount)
+      _cache[id].reviewHistory.push({ time: _now(), text: `人工追回 ${amount} 點（${reason}）`, actor: '後台人員' })
+    }
+  }
+
+  async function fetchUnmasked(id) {
+    const { data } = await client.get(`/api/backend/informants/${id}`)
+    if (_cache[id]) {
+      _cache[id].name        = data.name         ?? ''
+      _cache[id].phone       = data.phone        ?? ''
+      _cache[id].idNo        = data.idNo         ?? ''
+      _cache[id].bankAccount = data.payoutAccount ?? ''
+      // 審核歷程（admin-only）：GET {id} 回傳完整帳號操作記錄
+      if (data.history?.length) {
+        _cache[id].reviewHistory = data.history.map(h => ({
+          time:  h.time  ?? '',
+          text:  h.text  ?? '',
+          actor: h.actor ?? null,
+        }))
+      }
     }
   }
 
@@ -115,7 +155,7 @@ export const useInformantsStore = defineStore('informants', () => {
 
   return {
     informants, searching, getById,
-    search, fetchProfile,
-    suspend, reinstate, remove, adjustReputation,
+    search, fetchProfile, fetchUnmasked,
+    suspend, reinstate, remove, settle, debit, adjustReputation,
   }
 })

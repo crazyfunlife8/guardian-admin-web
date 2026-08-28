@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5080'
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 const client = axios.create({
   baseURL: BASE_URL,
@@ -20,7 +20,8 @@ client.interceptors.response.use(
   res => res,
   async err => {
     const original = err.config
-    if (err.response?.status === 401 && !original._retry) {
+    const isAuthEndpoint = original.url?.includes('/api/auth/')
+    if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true
       if (!refreshPromise) {
         const refreshToken = localStorage.getItem('refreshToken')

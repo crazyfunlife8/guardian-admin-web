@@ -1,6 +1,6 @@
 <template>
   <li class="result-item" @click="$emit('select', item.id)">
-    <span class="iid">{{ item.id }}</span>
+    <span class="iid">{{ item.informantNo || item.id }}</span>
     <span class="masked-name">●●●</span>
     <StatusBadge :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANTS[item.status]" />
     <span class="joined mono">{{ item.joinedAt }}</span>
@@ -16,8 +16,8 @@ defineProps({
 })
 defineEmits(['select'])
 
-const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中', removed: '除名待結清', cleared: '已結清' }
-const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait',  removed: 'danger',    cleared: 'danger'  }
+const STATUS_LABELS   = { Pending: '審核中', Approved: '待綁定', Active: '正常', Suspended: '停權', Removed: '除名待結清', Cleared: '已結清' }
+const STATUS_VARIANTS = { Pending: 'wait',   Approved: 'wait',    Active: 'ok',    Suspended: 'danger',  Removed: 'danger',   Cleared: 'danger'  }
 </script>
 
 <style scoped>

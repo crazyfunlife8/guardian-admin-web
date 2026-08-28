@@ -6,7 +6,7 @@
       ● 篩選中：{{ activeFilterLabel }} ✕
     </div>
 
-    <MapSearch />
+    <MapSearch @fly-to="handleFlyTo" />
     <MapFilter />
     <EventCard
       :event="selectedEvent"
@@ -81,7 +81,7 @@ const DARK_STYLE = [
 
 async function initMap() {
   setOptions({
-    apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
+    key: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
     version: 'weekly',
   })
   await importLibrary('maps')
@@ -166,6 +166,11 @@ onUnmounted(() => {
   markers.forEach(m => m.setMap(null))
   markers.clear()
 })
+
+function handleFlyTo({ lat, lng }) {
+  map?.panTo({ lat, lng })
+  map?.setZoom(16)
+}
 
 async function handleAction({ eventId, action, basis }) {
   try {

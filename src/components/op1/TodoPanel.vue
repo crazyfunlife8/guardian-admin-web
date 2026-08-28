@@ -1,14 +1,17 @@
 <template>
   <aside class="todo" :class="{ collapsed, theater: theaterMode }">
     <div class="panel-head">
-      <h2>待辦</h2>
+      <h2>
+        待辦
+        <span v-if="collapsed && totalCount > 0" class="badge warn">{{ totalCount }}</span>
+      </h2>
       <button class="collapse" @click="collapsed = !collapsed">
         {{ collapsed ? '展開 ›' : '收合 ‹' }}
       </button>
     </div>
     <ul v-if="!collapsed">
       <li
-        v-for="item in items"
+        v-for="item in activeItems"
         :key="item.key"
         @click="item.route ? router.push(item.route) : $emit('item-click', item.key)"
       >
@@ -17,6 +20,9 @@
           <span class="badge" :class="badgeClass(item.count, item.key)">{{ item.count }}</span>
           <span class="arrow">→</span>
         </span>
+      </li>
+      <li v-if="activeItems.length === 0" class="empty">
+        <span class="name">暫無待辦事項</span>
       </li>
     </ul>
   </aside>
@@ -48,6 +54,9 @@ const items = computed(() => [
   { key: 'pipeline',      label: '管線告警',       count: todo.value.pipelineAlerts,          route: '/op7' },
 ])
 
+const activeItems = computed(() => items.value.filter(i => i.count > 0))
+const totalCount = computed(() => items.value.reduce((sum, i) => sum + (i.count || 0), 0))
+
 function badgeClass(count, key) {
   if (count === 0) return 'zero'
   if (DANGER_KEYS.has(key)) return 'danger'
@@ -67,7 +76,7 @@ function badgeClass(count, key) {
   backdrop-filter: blur(6px);
   z-index: 20;
 }
-.todo.collapsed { width: auto; }
+
 
 .panel-head {
   display: flex;
@@ -76,7 +85,9 @@ function badgeClass(count, key) {
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
 }
-.panel-head h2 { font-size: 18px; font-weight: 600; }
+.panel-head h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+li.empty { cursor: default; color: var(--text-secondary); font-size: 13px; }
+li.empty:hover { background: none; }
 .collapse {
   background: none;
   border: none;

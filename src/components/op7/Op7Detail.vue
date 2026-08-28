@@ -26,28 +26,22 @@
       <KeyValue label="觸發時間" :value="acase.triggeredAt" mono />
     </InfoCard>
 
-    <!-- 相關回報紀錄 -->
-    <InfoCard title="相關回報紀錄">
-      <div class="report-table-wrap">
-        <table class="report-table">
-          <thead>
-            <tr>
-              <th>時間</th>
-              <th>類型</th>
-              <th>路段</th>
-              <th>判定結果</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in acase.reports" :key="r.time + r.location">
-              <td class="mono">{{ r.time }}</td>
-              <td>{{ r.type }}</td>
-              <td>{{ r.location }}</td>
-              <td :class="resultClass(r.result)">{{ r.result }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- 任務佐證 -->
+    <InfoCard v-if="acase.taskId" title="任務佐證">
+      <p v-if="acase.evidenceSkipped" class="ev-note">情報員跳過佐證上傳（此任務不計酬）</p>
+      <template v-else-if="acase.evidence.length">
+        <div v-for="ev in acase.evidence" :key="ev.id" class="ev-row">
+          <span class="ev-type mono">{{ ev.evidenceType }}</span>
+          <span class="ev-time">{{ ev.createdAt }}</span>
+          <button class="btn-ev" @click="viewEvidence(ev.id)">查看</button>
+        </div>
+        <div v-if="evBlobUrl" class="ev-preview">
+          <img v-if="evIsImage" :src="evBlobUrl" alt="佐證" />
+          <a v-else :href="evBlobUrl" target="_blank" class="ev-dl">下載影片檔</a>
+        </div>
+        <p v-if="evError" class="ev-note danger">{{ evError }}</p>
+      </template>
+      <p v-else class="ev-note">尚無佐證記錄</p>
     </InfoCard>
 
     <!-- 動作列 -->
@@ -55,9 +49,6 @@
       <button class="btn primary" @click="openDialog('confirm')">確認停權</button>
       <button class="btn neutral" @click="openDialog('clear')">誤判解除</button>
     </ActionBar>
-
-    <!-- 覆核時間軸 -->
-    <StatusTimeline title="覆核歷程（每節點皆須留跡）" :entries="timelineEntries" />
 
     <!-- 確認對話框 -->
     <ConfirmDialog
@@ -76,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, computed }    from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { storeToRefs }      from 'pinia'
 import { useAbuseCheckStore } from '../../stores/abuseCheck'
 import { useToastStore }    from '../../stores/toast'
@@ -85,12 +76,41 @@ import StateMachineBar from '../shared/StateMachineBar.vue'
 import InfoCard        from '../shared/InfoCard.vue'
 import KeyValue        from '../shared/KeyValue.vue'
 import ActionBar       from '../shared/ActionBar.vue'
-import StatusTimeline  from '../shared/StatusTimeline.vue'
 import ConfirmDialog   from '../shared/ConfirmDialog.vue'
 
 const store = useAbuseCheckStore()
 const toast = useToastStore()
 const { selectedCase: acase } = storeToRefs(store)
+
+const evBlobUrl  = ref(null)
+const evIsImage  = ref(true)
+const evError    = ref('')
+
+function revokeEv() {
+  if (evBlobUrl.value) {
+    URL.revokeObjectURL(evBlobUrl.value)
+    evBlobUrl.value = null
+  }
+}
+
+watch(() => acase.value?.id, () => {
+  revokeEv()
+  evError.value = ''
+})
+
+onUnmounted(revokeEv)
+
+async function viewEvidence(evidenceId) {
+  revokeEv()
+  evError.value = ''
+  try {
+    const { url, isImage } = await store.fetchEvidenceFile(acase.value.taskId, evidenceId)
+    evBlobUrl.value = url
+    evIsImage.value = isImage
+  } catch (e) {
+    evError.value = e.message === '404' ? '檔案不存在（已從 Storage 移除）' : '載入失敗，請稍後再試'
+  }
+}
 
 const STATUS_LABELS = {
   pending:   '待覆核',
@@ -134,15 +154,6 @@ const steps = computed(() => {
   ]
 })
 
-const timelineEntries = computed(() =>
-  (acase.value?.history ?? []).map((h, i, arr) => ({
-    time:  h.time,
-    text:  h.text,
-    actor: h.actor ?? null,
-    done:  i < arr.length - 1 || isTerminated.value,
-  }))
-)
-
 const DIALOG_CONFIG = {
   confirm: {
     title:   '確認對此案件執行停權？',
@@ -175,11 +186,7 @@ function onConfirm(reason) {
   toast.success(dialog.value.action === 'confirm' ? '已確認停權・已留跡' : '已誤判解除・已留跡')
 }
 
-function resultClass(result) {
-  if (result === '系統誤報') return 'result-bad'
-  if (result === '確認')     return 'result-ok'
-  return 'result-neutral'
-}
+
 </script>
 
 <style scoped>
@@ -213,31 +220,37 @@ function resultClass(result) {
 .id-link:hover { text-decoration: underline; }
 .mono { font-family: var(--mono); }
 
-/* 相關回報表 */
-.report-table-wrap { overflow-x: auto; }
-.report-table {
-  width: 100%;
-  border-collapse: collapse;
+.ev-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
-.report-table th {
-  text-align: left;
-  color: var(--text-secondary);
-  font-weight: 500;
-  padding: 6px 12px 6px 0;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
+.ev-row:last-of-type { border-bottom: none; }
+.ev-type { color: var(--text-primary); min-width: 60px; }
+.ev-time { color: var(--text-secondary); flex: 1; }
+
+.btn-ev {
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: var(--sans);
 }
-.report-table td {
-  padding: 8px 12px 8px 0;
-  border-bottom: 1px solid rgba(42,53,71,.3);
-  color: var(--text-primary);
-  vertical-align: middle;
-}
-.report-table tr:last-child td { border-bottom: none; }
-.result-ok      { color: var(--ok); }
-.result-bad     { color: var(--danger); }
-.result-neutral { color: var(--text-secondary); }
+.btn-ev:hover { background: rgba(88,193,212,.08); }
+
+.ev-preview { margin-top: 12px; }
+.ev-preview img { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+.ev-dl { color: var(--accent); font-size: 13px; text-decoration: none; }
+.ev-dl:hover { text-decoration: underline; }
+
+.ev-note { font-size: 13px; color: var(--text-secondary); }
+.ev-note.danger { color: var(--danger); }
 
 /* 動作按鈕 */
 .btn {

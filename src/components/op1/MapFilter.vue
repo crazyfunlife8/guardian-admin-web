@@ -55,14 +55,18 @@ watch(open, val => {
 onUnmounted(() => document.removeEventListener('click', onDocClick))
 
 const typeOpts   = [
-  { label: '路檢', value: 'inspection' },
-  { label: '事故', value: 'accident' },
-  { label: '施工', value: 'construction' },
-  { label: '管制', value: 'control' },
+  { label: '路檢', value: 'Checkpoint' },
+  { label: '事故', value: 'Accident' },
+  { label: '施工', value: 'Construction' },
+  { label: '管制', value: 'Control' },
+  { label: '積水', value: 'Flooding' },
 ]
 const statusOpts = [
-  { label: '未確認', value: 'unverified' },
-  { label: '已驗證', value: 'verified' },
+  { label: '未確認', value: 'Unconfirmed' },
+  { label: '已驗證', value: 'Verified' },
+  { label: '已解除', value: 'Cleared' },
+  { label: '已過期', value: 'Expired' },
+  { label: '誤報',   value: 'FalseReport' },
 ]
 const sourceOpts = [
   { label: '用戶反饋', value: '用戶反饋' },

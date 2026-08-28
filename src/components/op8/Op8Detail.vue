@@ -17,13 +17,18 @@
         <KeyValue label="兌換項目" :value="order.items || '（詳見明細）'" />
         <KeyValue label="申請積分" :value="`${(order.amountPoints ?? 0).toLocaleString()} 積分`" />
         <KeyValue label="申請時間" :value="order.createdAt" />
-        <!-- TODO(後端): 單筆上限驗算、本人否認標記尚未納入 RedemptionResponse -->
+        <KeyValue v-if="order.limitCheck != null" label="單筆上限驗算" :value="order.limitCheck" />
+        <KeyValue v-if="order.deniedByOwner" label="本人否認" value="⚠ 情報員已否認此申請" />
       </InfoCard>
 
       <InfoCard title="情報員積分餘額（即時）" class="balance-card">
-        <!-- TODO(後端): 餘額資料需另呼叫 GET /api/backend/informants/{id}/profile 才能取得 -->
-        <p class="todo-note">餘額資料待後端於 RedemptionResponse 補充，或由前端另行呼叫情報員 profile 端點</p>
-        <KeyValue label="情報員 ID" :value="order.informantId ? `#${order.informantId}` : '—'" />
+        <KeyValue label="情報員編號" :value="order.informantNo ? `#${order.informantNo}` : (order.informantId ? `ID ${order.informantId}` : '—')" />
+        <template v-if="order.informantBalance?.available != null">
+          <KeyValue label="可用積分" :value="`${order.informantBalance.available.toLocaleString()} 積分`" />
+          <KeyValue label="凍結中" :value="`${(order.informantBalance.frozen ?? 0).toLocaleString()} 積分`" />
+          <KeyValue label="入帳中" :value="`${(order.informantBalance.deferred ?? 0).toLocaleString()} 積分`" />
+        </template>
+        <p v-else class="todo-note">餘額資料於點擊明細後載入</p>
         <KeyValue label="核銷憑證" :value="order.voucherInfo || '（尚未填入）'" />
       </InfoCard>
     </div>
@@ -41,13 +46,10 @@
       <template v-else-if="order.status === 'Disbursed'">
         <button class="btn primary" @click="openDialog('deduct')">扣除確認</button>
       </template>
+      <template v-else-if="order.status === 'Held'">
+        <button class="btn danger" @click="openDialog('rejectHeld')">拒單</button>
+      </template>
     </ActionBar>
-
-    <!-- 時間軸 -->
-    <StatusTimeline
-      title="單據歷程（每個狀態轉換當下留跡、不可事後補記）"
-      :entries="order.history"
-    />
 
     <!-- 確認對話框 -->
     <ConfirmDialog
@@ -73,7 +75,6 @@ import StateMachineBar from '../shared/StateMachineBar.vue'
 import InfoCard        from '../shared/InfoCard.vue'
 import KeyValue        from '../shared/KeyValue.vue'
 import ActionBar       from '../shared/ActionBar.vue'
-import StatusTimeline  from '../shared/StatusTimeline.vue'
 import ConfirmDialog   from '../shared/ConfirmDialog.vue'
 
 const store    = useRedemptionStore()
@@ -88,6 +89,7 @@ const STATE_LABELS = {
   Deducted:      '已結清',
   Rejected:      '已拒',
   Held:          '掛起（停權）',
+  OwnerDenied:   '本人否認',
 }
 const STATE_VARIANTS = {
   Applied:       'wait',
@@ -97,6 +99,7 @@ const STATE_VARIANTS = {
   Deducted:      'ok',
   Rejected:      'danger',
   Held:          'hold',
+  OwnerDenied:   'danger',
 }
 
 const steps = computed(() => {
@@ -119,8 +122,9 @@ const DIALOG_CONFIG = {
   confirm:     { title: '確認核對成立？',    body: (o) => `將凍結情報員 #${o.informantId} 積分 <b style="font-family:var(--mono)">${(o.amountPoints ?? 0).toLocaleString()}</b>。凍結後不可再用於其他兌換；發放失敗可解凍退回。` },
   reject:      { title: '確認拒單？',        body: (o) => `此兌換申請 ${o.id} 將被拒絕，積分不扣除。` },
   fillVoucher: { title: '確認回填發放憑證？', body: (o) => `確認已完成 ${(o.amountPoints ?? 0).toLocaleString()} 積分發放，填入憑證後轉為已發放態。` },
-  failBack:    { title: '確認發放失敗？',     body: (o) => `將退回待核對並解凍 ${(o.amountPoints ?? 0).toLocaleString()} 積分，請填寫失敗原因。` },
-  deduct:      { title: '確認積分扣除？',     body: (o) => `確認扣除情報員 #${o.informantId} 積分、完成結清。` },
+  failBack:    { title: '確認發放失敗 / 取消？', body: (o) => `將解凍 ${(o.amountPoints ?? 0).toLocaleString()} 積分並拒單，請填寫失敗原因。` },
+  deduct:      { title: '確認積分扣除？',      body: (o) => `確認扣除情報員 #${o.informantId} 積分、完成結清。` },
+  rejectHeld:  { title: '確認拒單（掛起中）？', body: (o) => `此兌換申請 ${o.id} 因帳號停權或除名而掛起。拒單後此申請終結，若有凍結積分將自動解凍。除名結清前請確認積分已處置完畢。` },
 }
 
 const dialog = ref({ open: false, action: '', title: '', body: '' })

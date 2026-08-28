@@ -79,11 +79,6 @@
         <div class="report-inner">
           <!-- 篩選列 -->
           <div class="filter-bar">
-            <select v-model="reportFilter.ruleType" class="filter-select">
-              <option value="all">全部類型</option>
-              <option value="single_fake">單人作假</option>
-              <option value="suspicious_source">可疑來源</option>
-            </select>
             <input
               v-model="reportFilter.informantId"
               type="text"
@@ -100,7 +95,6 @@
                 <tr>
                   <th>案件編號</th>
                   <th>情報員 / 來源</th>
-                  <th>觸發類型</th>
                   <th>觸發時間</th>
                   <th>處理結果</th>
                 </tr>
@@ -114,11 +108,6 @@
                 >
                   <td class="mono">{{ c.id }}</td>
                   <td class="mono">{{ c.informantId ?? c.sourceId }}</td>
-                  <td>
-                    <span class="type-chip" :class="c.type">
-                      {{ RULE_TYPE_LABELS[c.type] }}
-                    </span>
-                  </td>
                   <td class="mono">{{ c.triggeredAt }}</td>
                   <td>
                     <StatusBadge
@@ -184,10 +173,6 @@ const QUEUE_FILTERS = [
   { label: '全部',   key: 'all' },
 ]
 
-const RULE_TYPE_LABELS = {
-  single_fake:       '單人作假',
-  suspicious_source: '可疑來源',
-}
 const STATUS_LABELS = {
   pending:   '待覆核',
   confirmed: '確認停權',
@@ -241,11 +226,10 @@ function goToCase(id) {
 }
 
 function exportCsv() {
-  const headers = ['案件編號', '情報員/來源', '觸發類型', '觸發時間', '處理結果']
+  const headers = ['案件編號', '情報員/來源', '觸發時間', '處理結果']
   const rows = filteredReports.value.map(c => [
     c.id,
     c.informantId ?? c.sourceId,
-    RULE_TYPE_LABELS[c.type] ?? c.type,
     c.triggeredAt,
     STATUS_LABELS[c.status] ?? c.status,
   ])
@@ -421,16 +405,6 @@ function exportCsv() {
 .data-row:hover .data-table td { border-bottom-color: transparent; }
 
 .mono { font-family: var(--mono); }
-
-.type-chip {
-  font-size: 12px;
-  border-radius: 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  color: var(--text-secondary);
-}
-.type-chip.single_fake       { color: var(--warn);   border-color: var(--warn); }
-.type-chip.suspicious_source { color: var(--danger); border-color: var(--danger); }
 
 .empty-state {
   text-align: center;

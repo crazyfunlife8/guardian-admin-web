@@ -1,6 +1,6 @@
 import { ref, reactive, computed } from 'vue'
 import { defineStore } from 'pinia'
-import client from '../api/client'
+import client, { BASE_URL } from '../api/client'
 
 function formatAgo(isoStr) {
   if (!isoStr) return ''
@@ -20,11 +20,11 @@ const QUAL_LABELS = {
 
 function mapListItem(d) {
   return {
-    id:         String(d.id),
-    state:      d.state ?? '',    // TODO(後端): state enum 值未在 OpenAPI 中定義
-    qualType:   d.qualType ?? '',
-    qualLabel:  QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
-    certFileUrl: d.certFileUrl ?? null,
+    id:          String(d.id),
+    state:       API_STATE_TO_UI[d.state] ?? d.state ?? '',
+    qualType:    d.qualType ?? '',
+    qualLabel:   QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
+    hasCertFile: d.hasCertFile ?? false,
     submittedAt: formatAgo(d.appliedAt),
   }
 }
@@ -32,7 +32,7 @@ function mapListItem(d) {
 function mapDetail(d) {
   return {
     id:            String(d.id),
-    state:         d.state ?? '',   // TODO(後端): state enum 值未在 OpenAPI 中定義
+    state:         API_STATE_TO_UI[d.state] ?? d.state ?? '',
     name:          d.name ?? '',
     phone:         d.phone ?? '',
     idNo:          d.idNo ?? '',
@@ -40,7 +40,7 @@ function mapDetail(d) {
     email:         d.email ?? '',
     qualType:      d.qualType ?? '',
     qualLabel:     QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
-    certFileUrl:   d.certFileUrl ?? null,
+    hasCertFile:   d.hasCertFile ?? false,
     submittedAt:   formatAgo(d.appliedAt),
     history:       (d.history ?? []).map(h => ({
       time:  h.time  ?? '',
@@ -51,21 +51,39 @@ function mapDetail(d) {
   }
 }
 
+// 前端 filter key → API state 參數對照
+const STATE_MAP = {
+  pending:          'pending',
+  approved_pending: 'approved',
+  active:           'active',
+  rejected:         'rejected',
+  // 'all' → 不帶 state 參數，後端預設回 Pending + Approved
+}
+
+// API state 值 → 前端 UI key 對照
+const API_STATE_TO_UI = {
+  Pending:  'pending',
+  Approved: 'approved_pending',
+  Active:   'active',
+  Rejected: 'rejected',
+}
+
 export const useReviewStore = defineStore('review', () => {
   const applications = ref([])
   const details      = reactive({})   // id(string) → detail object
-  const filterState  = ref('all')
+  const filterState  = ref('pending')
   const selectedId   = ref(null)
   const loading      = ref(false)
 
-  const filteredApps = computed(() => {
-    if (filterState.value === 'all') return applications.value
-    return applications.value.filter(a => a.state === filterState.value)
-  })
+  const filteredApps = computed(() => applications.value)
 
   const selectedApp = computed(() => details[selectedId.value] ?? null)
 
-  function setFilter(key) { filterState.value = key }
+  function setFilter(key) {
+    filterState.value = key
+    selectedId.value  = null
+    load()
+  }
 
   async function select(id) {
     selectedId.value = id
@@ -82,11 +100,11 @@ export const useReviewStore = defineStore('review', () => {
   async function load() {
     loading.value = true
     try {
-      const { data } = await client.get('/api/backend/informants/applications')
+      const stateParam = STATE_MAP[filterState.value]
+      const params = stateParam ? { state: stateParam } : {}
+      const { data } = await client.get('/api/backend/informants/applications', { params })
       applications.value = data.map(mapListItem)
-      if (!selectedId.value && applications.value.length) {
-        select(applications.value[0].id)
-      }
+      if (applications.value.length) select(applications.value[0].id)
     } catch (err) {
       console.error('load applications failed', err)
     } finally {
@@ -107,8 +125,17 @@ export const useReviewStore = defineStore('review', () => {
     if (listItem) listItem.state = action === 'approve' ? 'approved_pending' : 'rejected'
   }
 
+  async function fetchCertFile(id) {
+    const token = localStorage.getItem('accessToken')
+    const res = await fetch(`${BASE_URL}/api/backend/informants/${id}/cert-file`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`${res.status}`)
+    return URL.createObjectURL(await res.blob())
+  }
+
   return {
     applications, filterState, selectedId, filteredApps, selectedApp, loading,
-    setFilter, select, load, applyReviewAction,
+    setFilter, select, load, applyReviewAction, fetchCertFile,
   }
 })

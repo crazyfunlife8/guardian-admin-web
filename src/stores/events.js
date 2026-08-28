@@ -52,6 +52,7 @@ function formatTime(isoStr) {
 
 // Map API event to internal shape expected by components
 function mapEvent(e) {
+  const task = e.task ?? null
   return {
     id:          String(e.id),
     type:        e.type,
@@ -59,14 +60,17 @@ function mapEvent(e) {
     lat:         e.lat,
     lng:         e.lng,
     road:        e.road ?? e.roadName ?? '',
-    source:      e.source ?? '',
+    source:      e.source ?? e.sourceName ?? '',
     direction:   e.direction ?? null,
     reportedAgo: computeAgo(e.reportedAt ?? e.createdAt ?? e.at),
     ttlMin:      computeTtlMin(e.ttlExpiresAt),
-    taskStatus:  e.taskStatus ?? null,
+    taskStatus:    task?.lifecycleStatus ?? e.taskStatus ?? null,
+    taskInformant: task?.holderInformantId ? String(task.holderInformantId) : null,
+    taskCount:     e.taskCount ?? 0,
     history: (e.history ?? []).map(h => ({
-      time: formatTime(h.changedAt ?? h.time),
-      text: h.basis ?? h.text ?? '',
+      time:  formatTime(h.changedAt ?? h.time),
+      text:  h.basis ?? h.text ?? '',
+      actor: h.actorType ?? null,
     })),
     // keep raw timestamps for refresh
     _reportedAt:  e.reportedAt ?? e.createdAt ?? e.at,
@@ -115,10 +119,14 @@ export const useEventsStore = defineStore('events', () => {
     try {
       const params = _mapCursor ? { since: _mapCursor } : {}
       const { data } = await client.get('/api/backend/dashboard/map', { params })
-      _mapCursor = data.cursor
 
-      const incoming = (data.events ?? []).map(mapEvent)
-      // Merge: update existing or push new
+      // API returns MapEventItem[] directly
+      const items = Array.isArray(data) ? data : []
+      if (items.length) {
+        _mapCursor = items.reduce((max, e) => (e.at > max ? e.at : max), items[0].at)
+      }
+
+      const incoming = items.map(mapEvent)
       incoming.forEach(ev => {
         const idx = events.value.findIndex(e => e.id === ev.id)
         if (idx >= 0) events.value[idx] = ev

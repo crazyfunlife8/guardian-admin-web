@@ -16,38 +16,47 @@
     </div>
 
     <!-- 管理動作 -->
-    <ActionBar v-if="canManage">
-      <template v-if="inf.state === 'active'">
+    <ActionBar v-if="canManage || inf.state === 'removed'">
+      <template v-if="inf.state === 'Active'">
         <button class="btn warn" @click="openActionDialog('suspend')">停權</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
       </template>
-      <template v-else-if="inf.state === 'suspended'">
+      <template v-else-if="inf.state === 'Suspended'">
         <button class="btn primary" @click="openActionDialog('reinstate')">恢復帳號</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
+      </template>
+      <template v-else-if="inf.state === 'Removed'">
+        <button class="btn danger" @click="openActionDialog('settle')">執行結清</button>
       </template>
     </ActionBar>
 
     <!-- 基本資料 -->
-    <!-- TODO(後端): InformantProfileResponse 不含個資明文，以下欄位待後端補充個資摘要端點後恢復 -->
     <InfoCard title="基本資料">
-      <KeyValue v-if="inf.name" label="姓名">
-        <MaskField ref="nameRef" :value="inf.name" masked-text="●●●" @unmask="onUnmask('name')" />
+      <KeyValue label="姓名">
+        <template v-if="isAdmin">
+          <MaskField ref="nameRef" :value="inf.name" :masked-text="inf.nameMasked || '●●●●'" @unmask="onUnmask('name')" />
+        </template>
+        <span v-else class="mono">{{ inf.nameMasked || '—' }}</span>
       </KeyValue>
-      <KeyValue v-else label="姓名" value="待補充（profile endpoint 不含個資明文）" />
-      <KeyValue v-if="inf.phoneSuffix" label="手機末碼">
-        <MaskField ref="phoneRef" :value="`**** ${inf.phoneSuffix}`" masked-text="●●●●" @unmask="onUnmask('phone')" />
+      <KeyValue label="手機">
+        <template v-if="isAdmin">
+          <MaskField ref="phoneRef" :value="inf.phone" :masked-text="inf.phoneMasked || '●●●●'" @unmask="onUnmask('phone')" />
+        </template>
+        <span v-else class="mono">{{ inf.phoneMasked || '—' }}</span>
       </KeyValue>
-      <KeyValue v-else label="手機末碼" value="待補充" />
-      <KeyValue v-if="inf.idSuffix" label="身分證字號">
-        <MaskField ref="idRef" :value="`***-***-${inf.idSuffix}`" masked-text="●●●●" @unmask="onUnmask('id')" />
+      <KeyValue label="身分證字號">
+        <template v-if="isAdmin">
+          <MaskField ref="idRef" :value="inf.idNo" masked-text="●●●●●●●" @unmask="onUnmask('id')" />
+        </template>
+        <span v-else class="mono">●●●●●●●</span>
       </KeyValue>
-      <KeyValue v-else label="身分證字號" value="待補充" />
-      <KeyValue v-if="inf.bankAccount" label="收款帳戶">
-        <MaskField ref="bankRef" :value="`****-****-****-${inf.bankAccount}`" masked-text="●●●●" @unmask="onUnmask('bank')" />
+      <KeyValue label="收款帳戶">
+        <template v-if="isAdmin">
+          <MaskField ref="bankRef" :value="inf.bankAccount" masked-text="●●●●●●●●" @unmask="onUnmask('bank')" />
+        </template>
+        <span v-else class="mono">●●●●●●●●</span>
       </KeyValue>
-      <KeyValue v-else label="收款帳戶" value="待補充" />
-      <KeyValue label="服務區域"  :value="inf.zone || '待補充'" />
-      <KeyValue label="加入日期"  :value="inf.joinedAt || '待補充'" mono />
+      <KeyValue label="加入日期" :value="inf.joinedAt || '—'" mono />
     </InfoCard>
 
     <!-- 審核歷程 -->
@@ -108,20 +117,52 @@
         <KeyValue label="接單數"   :value="`${inf.taskSummary.monthlyCount} 件`" mono />
         <KeyValue label="完成率"   :value="inf.taskSummary.completionRate ? `${inf.taskSummary.completionRate}%` : '—'" mono />
         <KeyValue label="棄單次數" :value="`${inf.taskSummary.abandonCount} 次`" mono />
-        <KeyValue label="抽查結果" :value="inf.taskSummary.auditResult || '無紀錄'" mono />
+        <KeyValue label="抽查結果" mono>
+          <span v-if="inf.taskSummary.auditResult">
+            通過 {{ inf.taskSummary.auditResult.accepted ?? 0 }}・未通過 {{ inf.taskSummary.auditResult.rejected ?? 0 }}・待審 {{ inf.taskSummary.auditResult.pending ?? 0 }}
+          </span>
+          <span v-else>無紀錄</span>
+        </KeyValue>
       </template>
-      <p v-else class="empty-note">待後端補充（缺口 #22）</p>
+      <p v-else class="empty-note">無任務摘要資料</p>
     </InfoCard>
 
     <!-- 帳本摘要 -->
-    <!-- TODO(後端): InformantProfileResponse 不含 balance，等後端補充端點（缺口 #12） -->
     <InfoCard title="帳本摘要">
       <div class="big-num-row">
         <div class="big-num">
           <span class="num accent">{{ inf.balance.available.toLocaleString() }}</span>
           <small>可兌換積分</small>
         </div>
+        <button v-if="isAdmin && !showDebitForm" class="adj-toggle" @click="showDebitForm = true">人工追回</button>
       </div>
+
+      <!-- 人工追回表單（限管理員） -->
+      <div v-if="showDebitForm" class="rep-form">
+        <div class="rep-row">
+          <label class="rep-label">追回點數（正整數，只扣可用積分）</label>
+          <input
+            v-model.number="debitAmount"
+            type="number"
+            min="1"
+            class="rep-input mono"
+            placeholder="點數"
+          />
+          <span v-if="debitAmount > 0" class="rep-preview">
+            → {{ Math.max(0, inf.balance.available - debitAmount).toLocaleString() }} 點
+          </span>
+        </div>
+        <input
+          v-model="debitReason"
+          class="rep-reason"
+          placeholder="追回原因（必填）"
+        />
+        <div class="rep-actions">
+          <button class="btn danger" :disabled="!debitAmount || debitAmount < 1 || !debitReason" @click="submitDebit">確認追回・留跡</button>
+          <button class="btn" @click="cancelDebitForm">取消</button>
+        </div>
+      </div>
+
       <KeyValue label="凍結中" :value="inf.balance.frozen.toLocaleString()" mono />
       <KeyValue label="遞延中" :value="inf.balance.deferred.toLocaleString()" mono />
       <RouterLink :to="`/op9?gid=${inf.id}`" class="ledger-link">→ 詳細帳本（OP-9）</RouterLink>
@@ -175,6 +216,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useInformantsStore } from '../../stores/informants'
 import { useToastStore }      from '../../stores/toast'
+import { useAuthStore }       from '../../stores/auth'
 import StatusBadge    from '../shared/StatusBadge.vue'
 import InfoCard       from '../shared/InfoCard.vue'
 import KeyValue       from '../shared/KeyValue.vue'
@@ -188,16 +230,18 @@ const props = defineProps({
   informantId: { type: String, required: true },
 })
 
-const store = useInformantsStore()
-const toast = useToastStore()
+const store     = useInformantsStore()
+const toast     = useToastStore()
+const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.user?.role === 'Admin')
 
 const inf = computed(() => store.getById(props.informantId))
 
 onMounted(() => store.fetchProfile(props.informantId))
 
-// TODO(後端): state enum 值未在 OpenAPI 中定義，以下 key 為前端推測值，需後端以 enum 明確定義
-const STATUS_LABELS   = { active: '正常', suspended: '停權', reviewing: '審核中', removed: '除名待結清', cleared: '已結清' }
-const STATUS_VARIANTS = { active: 'ok',   suspended: 'danger', reviewing: 'wait',  removed: 'danger',    cleared: 'danger'  }
+const STATUS_LABELS   = { Pending: '審核中', Approved: '待綁定', Active: '正常', Suspended: '停權', Removed: '除名待結清', Cleared: '已結清' }
+const STATUS_VARIANTS = { Pending: 'wait',   Approved: 'wait',    Active: 'ok',    Suspended: 'danger',  Removed: 'danger',   Cleared: 'danger'  }
 
 // 審核史 → StatusTimeline 格式
 const reviewEntries = computed(() =>
@@ -211,7 +255,7 @@ const reviewEntries = computed(() =>
 
 // 管理動作
 const canManage = computed(() =>
-  inf.value && !['reviewing', 'removed', 'cleared'].includes(inf.value.state)
+  inf.value && !['Pending', 'Approved', 'Removed', 'Cleared'].includes(inf.value.state)
 )
 
 const SUSPEND_REASONS = [
@@ -234,14 +278,16 @@ const REMOVE_REASONS = [
 ]
 
 const ACTION_CONFIG = {
-  suspend:   { title: '確認停權？',   reasons: SUSPEND_REASONS },
+  suspend:   { title: '確認停權？',    reasons: SUSPEND_REASONS },
   reinstate: { title: '確認恢復帳號？', reasons: REINSTATE_REASONS },
-  remove:    { title: '確認除名？',   reasons: REMOVE_REASONS },
+  remove:    { title: '確認除名？',    reasons: REMOVE_REASONS },
+  settle:    { title: '確認執行結清？', reasons: [] },
 }
 const ACTION_BODY = {
   suspend:   (id) => `將 ${id} 帳號停權，停權後無法接任務。可依申訴結果恢復。`,
   reinstate: (id) => `將 ${id} 帳號恢復正常，恢復後可重新接任務。`,
   remove:    (id) => `將 ${id} 帳號除名，進入「待結清」狀態。此操作請謹慎確認。`,
+  settle:    (id) => `確認對 ${id} 執行結清。結清後帳號永久關閉，剩餘積分將依規定處理。此操作不可撤銷。`,
 }
 
 const actionDialog  = ref({ open: false, action: '', title: '', body: '', reasons: [] })
@@ -263,12 +309,54 @@ async function onActionConfirm(reason) {
     if (action === 'suspend')   await store.suspend(props.informantId, reason)
     if (action === 'reinstate') await store.reinstate(props.informantId, reason)
     if (action === 'remove')    await store.remove(props.informantId, reason)
+    if (action === 'settle')    await store.settle(props.informantId)
     toast.success('操作已完成・已留跡')
   } catch (err) {
-    toast.error(err?.response?.data?.message ?? '操作失敗，請重試')
+    if (action === 'settle') {
+      const code = err?.response?.data?.errorCode
+      if (code === 'ExitGraceNotExpired') {
+        const until = err?.response?.data?.graceUntil
+        toast.error(`緩衝期尚未結束，最早可於 ${until ?? '緩衝期結束後'} 執行結清`)
+      } else if (code === 'PendingRedemptionExists') {
+        toast.error('有未結案的兌換單（含掛起中），請先至 OP-8 將其拒單後再執行結清')
+      } else if (code === 'ResidualBalancePending') {
+        toast.error('仍有未處置積分，請先發放或以人工追回（OP-4 扣除）後再執行結清')
+      } else {
+        toast.error(err?.response?.data?.message ?? '結清失敗，請稍後重試')
+      }
+    } else {
+      toast.error(err?.response?.data?.message ?? '操作失敗，請重試')
+    }
   } finally {
     actionDialog.value.open = false
   }
+}
+
+// 人工追回
+const showDebitForm = ref(false)
+const debitAmount   = ref(0)
+const debitReason   = ref('')
+
+async function submitDebit() {
+  if (!debitAmount.value || debitAmount.value < 1 || !debitReason.value) return
+  try {
+    await store.debit(props.informantId, debitAmount.value, debitReason.value)
+    toast.success(`已追回 ${debitAmount.value} 點・已留跡`)
+    cancelDebitForm()
+  } catch (err) {
+    const code = err?.response?.data?.errorCode
+    if (code === 'InsufficientBalance') {
+      toast.error(`可用積分不足，最多可追回 ${inf.value?.balance?.available ?? 0} 點（可分次扣除）`)
+    } else {
+      toast.error(err?.response?.data?.message ?? '追回失敗，請重試')
+    }
+  }
+}
+
+function cancelDebitForm() {
+  showDebitForm.value = false
+  debitAmount.value   = 0
+  debitReason.value   = ''
 }
 
 // 信譽分調整
@@ -310,7 +398,10 @@ function onUnmask(field) {
   }
 }
 
-function onUnmaskConfirm(reason) {
+async function onUnmaskConfirm() {
+  try {
+    await store.fetchUnmasked(props.informantId)
+  } catch {}
   if (pendingUnmask.value === 'name')  nameRef.value?.reveal()
   if (pendingUnmask.value === 'phone') phoneRef.value?.reveal()
   if (pendingUnmask.value === 'id')    idRef.value?.reveal()

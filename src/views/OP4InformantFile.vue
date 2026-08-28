@@ -13,7 +13,7 @@
           <input
             v-model="query"
             class="search-input"
-            placeholder="情報員編號（GI-XXXX）…"
+            placeholder="情報員編號（INF…）…"
             autofocus
           />
         </div>
@@ -28,7 +28,7 @@
           <input
             v-model="advQuery"
             class="adv-input"
-            placeholder="手機末碼 or 姓名（高權限）…"
+            placeholder="完整手機號碼（高權限）…"
           />
         </div>
 
@@ -53,7 +53,7 @@
           </div>
         </div>
         <div v-else class="search-hint">
-          <p>輸入情報員編號（GI-XXXX）直接查詢</p>
+          <p>輸入情報員編號（INF…）直接查詢</p>
           <p class="hint-sub">或展開進階搜尋以手機末碼 / 姓名查詢</p>
         </div>
       </div>
@@ -90,13 +90,21 @@ const hasQuery = computed(() => !!(query.value.trim() || advQuery.value.trim()))
 const results  = computed(() => informants.value)
 
 let _timer = null
-function debouncedSearch(q) {
+function debouncedSearch(q, type) {
   clearTimeout(_timer)
-  _timer = setTimeout(() => store.search(q), 300)
+  _timer = setTimeout(() => store.search(q, type), 300)
 }
 
-watch(query,    (v) => debouncedSearch(v.trim() || advQuery.value.trim()))
-watch(advQuery, (v) => debouncedSearch(v.trim() || query.value.trim()))
+watch(query,    (v) => {
+  if (v.trim()) debouncedSearch(v.trim(), 'no')
+  else if (advQuery.value.trim()) debouncedSearch(advQuery.value.trim(), 'phone')
+  else store.search('')
+})
+watch(advQuery, (v) => {
+  if (v.trim()) debouncedSearch(v.trim(), 'phone')
+  else if (query.value.trim()) debouncedSearch(query.value.trim(), 'no')
+  else store.search('')
+})
 
 function goProfile(id) {
   router.push(`/op4/${id}`)

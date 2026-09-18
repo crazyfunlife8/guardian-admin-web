@@ -64,6 +64,7 @@ function mapEvent(e) {
     direction:   e.direction ?? null,
     reportedAgo: computeAgo(e.reportedAt ?? e.createdAt ?? e.at),
     ttlMin:      computeTtlMin(e.ttlExpiresAt),
+    taskId:        task?.id ? String(task.id) : null,
     taskStatus:    task?.lifecycleStatus ?? e.taskStatus ?? null,
     taskInformant: task?.holderInformantId ? String(task.holderInformantId) : null,
     taskCount:     e.taskCount ?? 0,
@@ -187,10 +188,44 @@ export const useEventsStore = defineStore('events', () => {
     }))
   }
 
+  // ── 任務生成 / 放大 ───────────────────────────────────────────────────────
+  async function generateTask(eventId, kind, bounty, radiusMeters) {
+    const { data } = await client.post('/api/backend/tasks/generate', {
+      eventId: Number(eventId),
+      kind,
+      ...(bounty != null ? { bounty } : {}),
+      ...(radiusMeters != null ? { radiusMeters } : {}),
+    })
+    await fetchEvent(eventId)
+    return data
+  }
+
+  async function expandTask(taskId, radiusMeters) {
+    await client.post(`/api/backend/tasks/${taskId}/expand`, { radiusMeters })
+  }
+
+  // ── 手動建事件 ────────────────────────────────────────────────────────────
+  async function createManualEvent(body) {
+    const { data } = await client.post('/api/backend/events/manual', body)
+    return data
+  }
+
+  // ── 派遣佇列 ──────────────────────────────────────────────────────────────
+  async function fetchDispatches(status) {
+    const params = status ? { status } : {}
+    const { data } = await client.get('/api/backend/events/dispatches', { params })
+    return data
+  }
+
+  async function completeDispatch(dispatchId, result, basis) {
+    await client.post(`/api/backend/events/dispatches/${dispatchId}/complete`, { result, basis })
+  }
+
   return {
     events, selectedId, clickPos, loading,
     selectedEvent, filteredEvents, filters, hasFilters, activeFilterLabel,
     select, clearSelection, setClickPos, setFilter, clearFilters, getById,
     loadMap, fetchEvent, applyEventAction,
+    generateTask, expandTask, createManualEvent, fetchDispatches, completeDispatch,
   }
 })

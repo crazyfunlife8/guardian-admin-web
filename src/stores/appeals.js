@@ -52,7 +52,6 @@ function mapDetail(d) {
     resolution:    d.resolution ?? null,
     submittedAt:   formatAgo(d.createdAt),
     resolvedAt:    d.resolvedAt ? new Date(d.resolvedAt).toLocaleDateString('zh-TW') : null,
-    // TODO(後端): TicketResponse 無 history/audit_log 欄位，審理歷程暫不可用
     history: [],
     result: null,  // client-side only: 'upheld' | 'rejected' | null
   }

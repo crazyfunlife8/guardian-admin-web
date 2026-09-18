@@ -20,18 +20,8 @@ defineProps({
 })
 defineEmits(['select'])
 
-const STATUS_LABELS = {
-  pending:          '待審核',
-  approved_pending: '已核准待綁定',
-  active:           '已開通',
-  rejected:         '已拒絕',
-}
-const STATUS_VARIANTS = {
-  pending:          'wait',
-  approved_pending: 'info',
-  active:           'ok',
-  rejected:         'danger',
-}
+const STATUS_LABELS   = { pending: '待審核', active: '已開通' }
+const STATUS_VARIANTS = { pending: 'wait',   active: 'ok'     }
 </script>
 
 <style scoped>

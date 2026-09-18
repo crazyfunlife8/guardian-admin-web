@@ -153,9 +153,14 @@ export const useInformantsStore = defineStore('informants', () => {
     }
   }
 
+  async function exitInformant(id) {
+    await client.post(`/api/backend/informants/${id}/exit`)
+    await fetchProfile(id)
+  }
+
   return {
     informants, searching, getById,
     search, fetchProfile, fetchUnmasked,
-    suspend, reinstate, remove, settle, debit, adjustReputation,
+    suspend, reinstate, remove, settle, debit, adjustReputation, exitInformant,
   }
 })

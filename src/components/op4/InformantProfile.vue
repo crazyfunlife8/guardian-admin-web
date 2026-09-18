@@ -16,7 +16,7 @@
     </div>
 
     <!-- 管理動作 -->
-    <ActionBar v-if="canManage || inf.state === 'removed'">
+    <ActionBar v-if="canManage || ['Removed', 'Removing', 'Settled', 'Cleared'].includes(inf.state)">
       <template v-if="inf.state === 'Active'">
         <button class="btn warn" @click="openActionDialog('suspend')">停權</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
@@ -25,8 +25,11 @@
         <button class="btn primary" @click="openActionDialog('reinstate')">恢復帳號</button>
         <button class="btn danger" @click="openActionDialog('remove')">除名</button>
       </template>
-      <template v-else-if="inf.state === 'Removed'">
+      <template v-else-if="inf.state === 'Removed' || inf.state === 'Removing'">
         <button class="btn danger" @click="openActionDialog('settle')">執行結清</button>
+      </template>
+      <template v-else-if="inf.state === 'Settled' || inf.state === 'Cleared'">
+        <button class="btn" @click="openActionDialog('exit')">退出匿名化</button>
       </template>
     </ActionBar>
 
@@ -282,12 +285,14 @@ const ACTION_CONFIG = {
   reinstate: { title: '確認恢復帳號？', reasons: REINSTATE_REASONS },
   remove:    { title: '確認除名？',    reasons: REMOVE_REASONS },
   settle:    { title: '確認執行結清？', reasons: [] },
+  exit:      { title: '確認退出匿名化？', reasons: [] },
 }
 const ACTION_BODY = {
   suspend:   (id) => `將 ${id} 帳號停權，停權後無法接任務。可依申訴結果恢復。`,
   reinstate: (id) => `將 ${id} 帳號恢復正常，恢復後可重新接任務。`,
   remove:    (id) => `將 ${id} 帳號除名，進入「待結清」狀態。此操作請謹慎確認。`,
   settle:    (id) => `確認對 ${id} 執行結清。結清後帳號永久關閉，剩餘積分將依規定處理。此操作不可撤銷。`,
+  exit:      (id) => `對 ${id} 執行退出匿名化。非稅務必要資料將依規定刪除或去識別化，此操作不可撤銷。`,
 }
 
 const actionDialog  = ref({ open: false, action: '', title: '', body: '', reasons: [] })
@@ -310,6 +315,7 @@ async function onActionConfirm(reason) {
     if (action === 'reinstate') await store.reinstate(props.informantId, reason)
     if (action === 'remove')    await store.remove(props.informantId, reason)
     if (action === 'settle')    await store.settle(props.informantId)
+    if (action === 'exit')      await store.exitInformant(props.informantId)
     toast.success('操作已完成・已留跡')
   } catch (err) {
     if (action === 'settle') {

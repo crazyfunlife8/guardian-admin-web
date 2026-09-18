@@ -38,6 +38,27 @@
               :danger-color="event.taskStatus === '逾時'" />
             <KeyValue v-if="event.taskInformant" label="接單情報員" :value="event.taskInformant" mono />
             <KeyValue v-if="event.taskRadius"    label="廣播半徑"   :value="`第 ${event.taskRadius} 檔`" />
+            <!-- 擴大廣播半徑（僅 Broadcasting 狀態） -->
+            <div v-if="event.taskStatus === 'Broadcasting' && event.taskId" class="task-form">
+              <input v-model.number="expandRadius" type="number" class="mini-input" placeholder="新半徑（公尺）" min="100" />
+              <button class="btn-sm" :disabled="!expandRadius || expandingTask" @click="submitExpandTask">
+                {{ expandingTask ? '處理中…' : '擴大廣播半徑' }}
+              </button>
+            </div>
+          </template>
+          <template v-else-if="!isTerminated">
+            <p class="no-task">此事件尚無驗證任務</p>
+            <div class="task-form">
+              <select v-model="taskKind" class="mini-select">
+                <option value="Verify">Verify（初次查核）</option>
+                <option value="Recheck">Recheck（複查）</option>
+              </select>
+              <input v-model.number="taskBounty" type="number" class="mini-input" placeholder="賞金（積分，選填）" min="1" />
+              <input v-model.number="taskRadius" type="number" class="mini-input" placeholder="廣播半徑（選填，公尺）" min="100" />
+              <button class="btn-sm primary" :disabled="generatingTask" @click="submitGenerateTask">
+                {{ generatingTask ? '生成中…' : '生成任務' }}
+              </button>
+            </div>
           </template>
           <p v-else class="no-task">此事件無對應驗證任務</p>
         </InfoCard>
@@ -63,6 +84,28 @@
         title="狀態機歷程（時間・執行者・依據缺一不可）"
         :entries="timelineEntries"
       />
+
+      <!-- 6. 派遣紀錄 -->
+      <InfoCard v-if="dispatches.length" title="派遣紀錄（O-4）">
+        <div v-for="d in dispatches" :key="d.id" class="dispatch-row">
+          <div class="dispatch-meta">
+            <span class="mono">派遣 #{{ d.id }}</span>
+            <span class="dispatch-status" :class="d.status === 'Dispatched' ? 'warn' : ''">
+              {{ d.status === 'Dispatched' ? '⬤ 處理中' : d.status === 'Completed' ? '✓ 已完成' : '✗ 已取消' }}
+            </span>
+          </div>
+          <div v-if="d.status === 'Dispatched'" class="dispatch-actions">
+            <select v-model="dispatchResults[d.id]" class="mini-select">
+              <option value="">選擇查核結果…</option>
+              <option value="Present">在（仍存在）</option>
+              <option value="Absent">不在</option>
+              <option value="Cleared">已解除</option>
+              <option value="FalseReport">誤報</option>
+            </select>
+            <button class="btn-sm primary" :disabled="!dispatchResults[d.id]" @click="onCompleteDispatch(d.id)">完成回報</button>
+          </div>
+        </div>
+      </InfoCard>
     </div>
 
     <!-- 確認對話框 -->
@@ -79,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute }      from 'vue-router'
 import { useEventsStore } from '../stores/events'
 import { useToastStore }  from '../stores/toast'
@@ -100,9 +143,78 @@ const toastStore = useToastStore()
 
 const event = computed(() => evStore.getById(route.params.eventId))
 
+// 任務生成
+const taskKind       = ref('Verify')
+const taskBounty     = ref(null)
+const taskRadius     = ref(null)
+const generatingTask = ref(false)
+
+// 擴大廣播半徑
+const expandRadius  = ref(null)
+const expandingTask = ref(false)
+
+// 派遣佇列
+const dispatches      = ref([])
+const dispatchResults = reactive({})
+
 onMounted(async () => {
   if (!event.value) await evStore.fetchEvent(route.params.eventId)
+  _loadDispatches()
 })
+
+async function _loadDispatches() {
+  try {
+    const all = await evStore.fetchDispatches()
+    dispatches.value = all.filter(d => String(d.eventId) === String(route.params.eventId))
+  } catch (_) {}
+}
+
+async function submitGenerateTask() {
+  if (generatingTask.value) return
+  generatingTask.value = true
+  try {
+    const res = await evStore.generateTask(
+      event.value.id,
+      taskKind.value,
+      taskBounty.value || undefined,
+      taskRadius.value || undefined,
+    )
+    toastStore.success(`任務 #${res.taskId} 已生成，廣播 ${res.broadcastRadius}m，${res.eligibleInformants} 位情報員`)
+    taskBounty.value = null
+    taskRadius.value = null
+  } catch (err) {
+    toastStore.error(err?.response?.data?.message ?? '生成失敗，請重試')
+  } finally {
+    generatingTask.value = false
+  }
+}
+
+async function submitExpandTask() {
+  if (!expandRadius.value || expandingTask.value || !event.value.taskId) return
+  expandingTask.value = true
+  try {
+    await evStore.expandTask(event.value.taskId, expandRadius.value)
+    toastStore.success('廣播半徑已擴大')
+    expandRadius.value = null
+    await evStore.fetchEvent(event.value.id)
+  } catch (err) {
+    toastStore.error(err?.response?.data?.message ?? '擴大失敗，請重試')
+  } finally {
+    expandingTask.value = false
+  }
+}
+
+async function onCompleteDispatch(dispatchId) {
+  const result = dispatchResults[dispatchId]
+  if (!result) return
+  try {
+    await evStore.completeDispatch(dispatchId, result, '')
+    toastStore.success('派遣已完成，事件狀態已更新')
+    await Promise.all([_loadDispatches(), evStore.fetchEvent(event.value.id)])
+  } catch (err) {
+    toastStore.error(err?.response?.data?.message ?? '完成派遣失敗，請重試')
+  }
+}
 
 const isTerminated = computed(() =>
   ['Cleared', 'FalseReport', 'Expired'].includes(event.value?.status)
@@ -215,6 +327,51 @@ async function onConfirm(reason) {
 .btn:hover   { background: var(--bg-panel-raised); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #08111F; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.1); }
+
+/* 任務生成 / 擴大半徑 */
+.task-form {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mini-input, .mini-select {
+  background: var(--bg-base);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--sans);
+  padding: 6px 10px;
+  height: 34px;
+}
+.mini-input { width: 130px; }
+.mini-select { cursor: pointer; }
+.btn-sm {
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--text-primary);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--sans);
+  height: 34px;
+  white-space: nowrap;
+}
+.btn-sm:hover:not(:disabled) { background: var(--bg-panel-raised); }
+.btn-sm.primary { background: var(--accent); border-color: var(--accent); color: #08111F; font-weight: 600; }
+.btn-sm.primary:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 派遣紀錄 */
+.dispatch-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dispatch-row:last-child { border-bottom: none; }
+.dispatch-meta { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.dispatch-status { font-size: 13px; color: var(--text-secondary); }
+.dispatch-status.warn { color: var(--warn); }
+.dispatch-actions { display: flex; gap: 8px; align-items: center; }
 
 /* 404 */
 .center {

@@ -21,7 +21,6 @@ defineProps({
 })
 defineEmits(['select'])
 
-// TODO(後端): SupportTicketStatus enum 值為 Open/InProgress/Resolved
 const STATUS_LABELS = {
   Open:       '待處理',
   InProgress: '調查中',

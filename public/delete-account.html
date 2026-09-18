@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刪除帳號 — 守護者</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #F7F8FA;
+    color: #1A1D23;
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  header {
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #E2E5EB;
+  }
+  .app-name {
+    font-size: 13px;
+    color: #6B7280;
+    letter-spacing: .08em;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #E2E5EB;
+    border-radius: 14px;
+    padding: 28px 26px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #EFF6FF;
+    color: #2563EB;
+  }
+  .badge.alt { background: #F0FDF4; color: #16A34A; }
+  .steps {
+    display: grid;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    color: #2563EB;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step p { color: #374151; }
+  .note {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #92400E;
+  }
+  .contact-link {
+    display: inline-block;
+    margin-top: 6px;
+    color: #2563EB;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .contact-link:hover { text-decoration: underline; }
+  .data-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+  }
+  .data-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 8px 12px;
+    background: #F9FAFB;
+    border-radius: 6px;
+    border: 1px solid #E5E7EB;
+  }
+  .data-item span:last-child { color: #6B7280; }
+  footer {
+    margin-top: 40px;
+    font-size: 13px;
+    color: #9CA3AF;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="app-name">守護者 APP</div>
+    <h1>刪除帳號與資料</h1>
+  </header>
+
+  <div class="card">
+    <h2>在 App 內申請刪除 <span class="badge">建議方式</span></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <p>開啟守護者 App，登入您的帳號</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p>前往底部導覽列「情報站」→「個人資料」</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p>點選「申請退出」，確認後提交退出申請</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <p>申請送出後，系統將進行帳務結清，完成後帳號與個人資料將依法刪除或匿名化處理</p>
+      </div>
+    </div>
+    <div class="note">
+      ⚠️ 退出申請有緩衝期，期間仍可正常使用並兌換積分。緩衝期結算後帳號資料將不可復原。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>無法使用 App？以電子郵件申請 <span class="badge alt">備用方式</span></h2>
+    <p style="color:#374151">若您無法登入 App，請以您申請時使用的電話號碼來信，我們將在 7 個工作天內協助處理。</p>
+    <a class="contact-link" href="mailto:support@guardian.nest-creation.com">support@guardian.nest-creation.com</a>
+  </div>
+
+  <div class="card">
+    <h2>刪除後資料處理方式</h2>
+    <div class="data-list">
+      <div class="data-item"><span>帳號資料（姓名、電話、身分證）</span><span>結清後刪除或匿名化</span></div>
+      <div class="data-item"><span>積分帳本紀錄</span><span>依法保留 5 年後刪除</span></div>
+      <div class="data-item"><span>任務執行紀錄</span><span>依法保留 5 年後刪除</span></div>
+      <div class="data-item"><span>裝置推播 Token</span><span>申請後立即移除</span></div>
+    </div>
+  </div>
+
+  <footer>
+    守護者 APP．如有疑問請來信 <a href="mailto:support@guardian.nest-creation.com" style="color:#6B7280">support@guardian.nest-creation.com</a>
+  </footer>
+</div>
+</body>
+</html>

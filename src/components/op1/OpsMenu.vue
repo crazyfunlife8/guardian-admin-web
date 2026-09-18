@@ -27,6 +27,12 @@
           <span v-if="item.restricted" class="tag restrict">高權限</span>
           <span v-if="!item.built" class="tag wip">建構中</span>
         </button>
+
+        <div class="menu-divider" />
+        <button class="menu-item action-item" @click="$emit('manual-event'); $emit('close')">
+          <span class="op-chip action">D5</span>
+          <span class="item-label">手動建事件</span>
+        </button>
       </nav>
 
       <div class="menu-foot">
@@ -41,7 +47,7 @@ import { computed }            from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 defineProps({ open: { type: Boolean, required: true } })
-defineEmits(['close'])
+defineEmits(['close', 'manual-event'])
 
 const router = useRouter()
 const route  = useRoute()
@@ -175,6 +181,15 @@ function navigate(item) {
 .tag.restrict { background: rgba(229, 96, 76, .12); color: var(--danger); border: 1px solid var(--danger); }
 
 /* 頁尾 */
+.menu-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+.action-item { color: var(--accent); }
+.action-item .item-label { color: var(--accent); }
+.op-chip.action { border-color: var(--accent); color: var(--accent); }
+
 .menu-foot {
   padding: 12px 20px;
   border-top: 1px solid var(--line);

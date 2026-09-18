@@ -25,16 +25,31 @@
       <!-- 分區任務開關 -->
       <InfoCard title="分區任務開關">
         <div class="region-hint">切換即對該區新事件生效，不影響其他區域；每次變更自動留跡。</div>
+        <div class="region-filter">
+          <label class="filter-label">篩選縣市：</label>
+          <select v-model="regionFilterCode" class="mode-select filter-select">
+            <option value="">全部</option>
+            <option v-for="area in store.adminAreas" :key="area.code" :value="area.code">
+              {{ area.name }}
+            </option>
+          </select>
+        </div>
         <table class="region-table">
           <thead>
             <tr>
-              <th class="col-region">區域 · 事件類型</th>
+              <th class="col-region">縣市 · 事件類型</th>
               <th class="col-mode">任務模式</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in store.regionModes" :key="`${row.adminAreaCode}-${row.eventType}`">
-              <td class="col-region">{{ row.adminAreaCode }} · {{ EVENT_TYPE_LABELS[row.eventType] ?? row.eventType }}</td>
+            <tr v-for="row in filteredRegionModes" :key="`${row.adminAreaCode}-${row.eventType}`">
+              <td class="col-region">
+                <span :class="{ 'code-unknown': !row.adminAreaName }">
+                  {{ row.adminAreaName ?? row.adminAreaCode }}
+                </span>
+                <span class="event-sep"> · </span>
+                {{ EVENT_TYPE_LABELS[row.eventType] ?? row.eventType }}
+              </td>
               <td class="col-mode">
                 <select
                   class="mode-select"
@@ -68,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useParamsStore, GROUP_META, REGION_MODE_LABELS } from '../stores/params'
 
 const EVENT_TYPE_LABELS = {
@@ -91,7 +106,15 @@ const toast = useToastStore()
 onMounted(() => {
   store.loadParams()
   store.loadRegionModes()
+  store.loadAdminAreas()
 })
+
+const regionFilterCode = ref('')
+const filteredRegionModes = computed(() =>
+  regionFilterCode.value
+    ? store.regionModes.filter(r => r.adminAreaCode === regionFilterCode.value)
+    : store.regionModes
+)
 
 const WARN_EXTRA = '⚠ 此設定將立即生效，影響全系統運作，請謹慎操作。'
 
@@ -125,13 +148,15 @@ function onRegionModeChange(row, newMode) {
   if (oldMode === newMode) return
   pendingChange.value = {
     type: 'region',
-    adminAreaCode: row.adminAreaCode,
+    adminAreaCode:  row.adminAreaCode,
+    adminAreaName:  row.adminAreaName ?? null,
     eventType: row.eventType,
     oldMode,
     newMode,
   }
 
-  const label = `${row.adminAreaCode} · ${EVENT_TYPE_LABELS[row.eventType] ?? row.eventType}`
+  const areaLabel = row.adminAreaName ?? row.adminAreaCode
+  const label = `${areaLabel} · ${EVENT_TYPE_LABELS[row.eventType] ?? row.eventType}`
   dialog.value = {
     open:  true,
     title: `確認切換「${label}」任務模式？`,
@@ -153,9 +178,20 @@ function onConfirm(reason) {
         : `已更新「${label}」：${oldValue.toLocaleString()} → ${Number(newValue).toLocaleString()} ${unit}・已留跡`
     )
   } else {
+    const areaName = c.adminAreaName ?? c.adminAreaCode
+    const label = `${areaName} · ${EVENT_TYPE_LABELS[c.eventType] ?? c.eventType}`
     store.updateRegionMode(c.adminAreaCode, c.eventType, c.newMode)
-    const label = `${c.adminAreaCode} · ${EVENT_TYPE_LABELS[c.eventType] ?? c.eventType}`
-    toast.success(`已更新「${label}」模式：${REGION_MODE_LABELS[c.oldMode]} → ${REGION_MODE_LABELS[c.newMode]}・已留跡`)
+      .then(() => {
+        toast.success(`已更新「${label}」模式：${REGION_MODE_LABELS[c.oldMode]} → ${REGION_MODE_LABELS[c.newMode]}・已留跡`)
+      })
+      .catch((err) => {
+        const code = err?.response?.data?.errorCode
+        if (code === 'InvalidAdminAreaCode') {
+          toast.error(err.response.data.message ?? '行政區代碼無效，請重新整理後再試')
+        } else {
+          toast.error('更新失敗，請稍後再試')
+        }
+      })
   }
 
   dialog.value.open   = false
@@ -192,8 +228,22 @@ function onCancel() {
 .region-hint {
   font-size: 13px;
   color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.region-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 12px;
 }
+.filter-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.filter-select { width: 160px; }
+.code-unknown { color: var(--danger); }
+.event-sep { color: var(--text-secondary); }
 
 .region-table {
   width: 100%;

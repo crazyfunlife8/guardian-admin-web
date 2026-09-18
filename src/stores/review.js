@@ -13,19 +13,19 @@ function formatAgo(isoStr) {
   return `${Math.floor(hrs / 24)} 天前`
 }
 
-// TODO(後端): qualType enum 值若有新增請同步更新此對照表
 const QUAL_LABELS = {
   motorcycle_courier: '機車外送員',
+  delivery:           '外送員',
 }
 
 function mapListItem(d) {
   return {
-    id:          String(d.id),
-    state:       API_STATE_TO_UI[d.state] ?? d.state ?? '',
-    qualType:    d.qualType ?? '',
-    qualLabel:   QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
-    hasCertFile: d.hasCertFile ?? false,
-    submittedAt: formatAgo(d.appliedAt),
+    id:            String(d.id),
+    state:         API_STATE_TO_UI[d.state] ?? d.state ?? '',
+    qualType:      d.qualType ?? '',
+    qualLabel:     QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
+    certFileCount: d.certFileCount ?? 0,
+    submittedAt:   formatAgo(d.appliedAt),
   }
 }
 
@@ -40,32 +40,26 @@ function mapDetail(d) {
     email:         d.email ?? '',
     qualType:      d.qualType ?? '',
     qualLabel:     QUAL_LABELS[d.qualType] ?? d.qualType ?? '',
-    hasCertFile:   d.hasCertFile ?? false,
+    certFileCount: d.certFileCount ?? 0,
     submittedAt:   formatAgo(d.appliedAt),
     history:       (d.history ?? []).map(h => ({
       time:  h.time  ?? '',
       text:  h.text  ?? '',
       actor: h.actor ?? null,
     })),
-    // TODO(後端): plateSuffix, zone 欄位 API 未定義（缺口 #18）
   }
 }
 
-// 前端 filter key → API state 參數對照
+// 前端 filter key → API state 參數對照（不帶 state 時後端只回 Pending）
 const STATE_MAP = {
-  pending:          'pending',
-  approved_pending: 'approved',
-  active:           'active',
-  rejected:         'rejected',
-  // 'all' → 不帶 state 參數，後端預設回 Pending + Approved
+  pending: null,     // 不帶 state 參數
+  active:  'Active',
 }
 
 // API state 值 → 前端 UI key 對照
 const API_STATE_TO_UI = {
-  Pending:  'pending',
-  Approved: 'approved_pending',
-  Active:   'active',
-  Rejected: 'rejected',
+  Pending: 'pending',
+  Active:  'active',
 }
 
 export const useReviewStore = defineStore('review', () => {
@@ -118,16 +112,15 @@ export const useReviewStore = defineStore('review', () => {
       : `/api/backend/informants/${id}/reject`
     const body = action === 'approve' ? { basis: reason } : { reason }
     await client.post(url, body)
-    if (details[id]) {
-      details[id].state = action === 'approve' ? 'approved_pending' : 'rejected'
-    }
-    const listItem = applications.value.find(a => a.id === id)
-    if (listItem) listItem.state = action === 'approve' ? 'approved_pending' : 'rejected'
+    // 核准 → 直接開通；駁回 → 申請刪除。兩者都從目前佇列移除
+    applications.value = applications.value.filter(a => a.id !== id)
+    delete details[id]
+    selectedId.value = applications.value[0]?.id ?? null
   }
 
-  async function fetchCertFile(id) {
+  async function fetchCertFile(id, index) {
     const token = localStorage.getItem('accessToken')
-    const res = await fetch(`${BASE_URL}/api/backend/informants/${id}/cert-file`, {
+    const res = await fetch(`${BASE_URL}/api/backend/informants/${id}/cert-files/${index}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) throw new Error(`${res.status}`)

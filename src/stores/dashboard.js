@@ -8,11 +8,37 @@ export const useDashboardStore = defineStore('dashboard', () => {
     openTickets:             0,
     redemptionPendingReview: 0,
     expiredUnacceptedTasks:  0,
+    dispatchBlockedEvents:   0,
     suspiciousObservations:  0,
     staleVerifiedEvents:     0,
     abnormalPairings:        0,
     pipelineAlerts:          0,
   })
+
+  const unacceptedTasks      = ref([])
+  const dispatchBlockedList  = ref([])
+  const staleVerifiedList    = ref([])
+
+  async function fetchUnacceptedTasks() {
+    const { data } = await client.get('/api/backend/dashboard/todo/unaccepted-tasks')
+    unacceptedTasks.value = data
+  }
+
+  async function fetchDispatchBlockedList() {
+    const { data } = await client.get('/api/backend/dashboard/todo/dispatch-blocked-events')
+    dispatchBlockedList.value = data
+  }
+
+  async function fetchStaleVerifiedList() {
+    const { data } = await client.get('/api/backend/dashboard/todo/stale-verified-events')
+    staleVerifiedList.value = data
+  }
+
+  async function dismissDispatchBlocked(eventId) {
+    await client.post(`/api/backend/events/${eventId}/dispatch-blocked/dismiss`)
+    dispatchBlockedList.value = dispatchBlockedList.value.filter(e => e.eventId !== eventId)
+    todo.value.dispatchBlockedEvents = Math.max(0, todo.value.dispatchBlockedEvents - 1)
+  }
 
   const monitor = ref({
     activeEvents:      0,
@@ -58,5 +84,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     pollTimer = null
   }
 
-  return { todo, monitor, startPoll, stopPoll, fetchTodo, fetchMonitor }
+  return {
+    todo, monitor, startPoll, stopPoll, fetchTodo, fetchMonitor,
+    unacceptedTasks, dispatchBlockedList, staleVerifiedList,
+    fetchUnacceptedTasks, fetchDispatchBlockedList, fetchStaleVerifiedList,
+    dismissDispatchBlocked,
+  }
 })

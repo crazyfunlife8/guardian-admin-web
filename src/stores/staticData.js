@@ -22,6 +22,19 @@ function mapHotspot(d) {
   }
 }
 
+function mapRedemptionItem(d) {
+  return {
+    id:             String(d.id),
+    name:           d.name ?? '',
+    pointsRequired: d.pointsRequired ?? 0,
+    cashValue:      d.cashValue ?? 0,
+    description:    d.description ?? '',
+    enabled:        d.enabled ?? true,
+    sortOrder:      d.sortOrder ?? 0,
+    createdAt:      d.createdAt ? d.createdAt.slice(0, 10) : '',
+  }
+}
+
 function mapCoverageArea(d) {
   return {
     id:            String(d.id),
@@ -43,8 +56,9 @@ function mapSource(d) {
 }
 
 export const useStaticDataStore = defineStore('staticData', () => {
-  const hotspots      = ref([])
-  const coverageAreas = ref([])
+  const hotspots        = ref([])
+  const coverageAreas   = ref([])
+  const redemptionItems = ref([])
 
   const sourceMasters = ref([])
 
@@ -116,7 +130,6 @@ export const useStaticDataStore = defineStore('staticData', () => {
     if (idx !== -1) coverageAreas.value.splice(idx, 1)
   }
 
-  // 合作來源主檔 CRUD（已串接 /api/backend/sources；缺口 #10）
   async function loadSources() {
     try {
       const { data } = await client.get('/api/backend/sources')
@@ -149,6 +162,33 @@ export const useStaticDataStore = defineStore('staticData', () => {
     if (src) src.deleted = false
   }
 
+  // 兌換品項
+  async function loadRedemptionItems() {
+    try {
+      const { data } = await client.get('/api/backend/redemption-items')
+      redemptionItems.value = data.map(mapRedemptionItem)
+    } catch (err) {
+      console.error('loadRedemptionItems failed', err)
+    }
+  }
+
+  async function addRedemptionItem(data) {
+    const { data: created } = await client.post('/api/backend/redemption-items', data)
+    redemptionItems.value.push(mapRedemptionItem(created))
+  }
+
+  async function updateRedemptionItem(id, patch) {
+    const { data: updated } = await client.put(`/api/backend/redemption-items/${id}`, patch)
+    const idx = redemptionItems.value.findIndex(r => r.id === id)
+    if (idx !== -1) redemptionItems.value[idx] = mapRedemptionItem(updated)
+  }
+
+  async function deleteRedemptionItem(id) {
+    await client.delete(`/api/backend/redemption-items/${id}`)
+    const idx = redemptionItems.value.findIndex(r => r.id === id)
+    if (idx !== -1) redemptionItems.value.splice(idx, 1)
+  }
+
   // 服務區域邊界
   const serviceBoundary = ref('')
 
@@ -171,9 +211,10 @@ export const useStaticDataStore = defineStore('staticData', () => {
   }
 
   return {
-    hotspots, coverageAreas, sourceMasters, serviceBoundary,
+    hotspots, coverageAreas, redemptionItems, sourceMasters, serviceBoundary,
     loadHotspots, addHotspot, updateHotspot, disableHotspot, deleteHotspot,
     loadCoverageAreas, addCoverageArea, updateCoverageArea, deleteCoverageArea,
+    loadRedemptionItems, addRedemptionItem, updateRedemptionItem, deleteRedemptionItem,
     loadSources, addSource, updateSource, deleteSource, enableSource,
     loadBoundary, updateBoundary,
   }

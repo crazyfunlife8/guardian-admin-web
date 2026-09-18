@@ -48,7 +48,6 @@
     </ActionBar>
 
     <!-- 審理時間軸 -->
-    <!-- TODO(後端): TicketResponse 無 history 欄位，審理歷程待後端補充 audit_log 端點後恢復 -->
     <StatusTimeline
       v-if="timelineEntries.length"
       title="審理歷程（每節點皆須留跡）"
@@ -88,7 +87,6 @@ const store = useAppealsStore()
 const toast = useToastStore()
 const { selectedAppeal: appeal } = storeToRefs(store)
 
-// TODO(後端): SupportTicketStatus enum 值為 Open/InProgress/Resolved
 const STATUS_LABELS = {
   Open:       '待處理',
   InProgress: '調查中',

@@ -86,13 +86,26 @@ export const useParamsStore = defineStore('params', () => {
     param.history.push({ time: now, from: oldValue, to: Number(value), reason, actor: '後台人員' })
   }
 
+  // ── 行政區清單（Admin Areas）─────────────────────────────────────────────
+  const adminAreas = ref([])   // [{ code, name, hasBoundary }]
+
+  async function loadAdminAreas() {
+    try {
+      const { data } = await client.get('/api/backend/admin-areas')
+      adminAreas.value = data
+    } catch (err) {
+      console.error('loadAdminAreas failed', err)
+    }
+  }
+
   // ── 分區任務開關（Region Modes）──────────────────────────────────────────
   const regionModes = ref([])
 
   async function loadRegionModes() {
     try {
       const { data } = await client.get('/api/backend/region-modes')
-      regionModes.value = data  // RegionModeItem[]: { adminAreaCode, eventType, mode, updatedAt }
+      // RegionModeItem[]: { adminAreaCode, adminAreaName, eventType, mode, updatedAt }
+      regionModes.value = data
     } catch (err) {
       console.error('loadRegionModes failed', err)
     }
@@ -107,6 +120,7 @@ export const useParamsStore = defineStore('params', () => {
   return {
     paramList, paramMap, paramsInGroup,
     loadParams, updateParam,
+    adminAreas, loadAdminAreas,
     regionModes, loadRegionModes, updateRegionMode,
   }
 })

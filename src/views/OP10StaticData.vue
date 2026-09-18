@@ -133,6 +133,10 @@
           <div v-if="smAddingNew" class="item-row add-row">
             <div class="item-form">
               <div class="form-row">
+                <label class="form-label">來源代碼</label>
+                <input v-model="smDraft.sourceKey" class="form-input" placeholder="英文唯一代碼，例：tdx（建立後不可更改）" />
+              </div>
+              <div class="form-row">
                 <label class="form-label">名稱</label>
                 <input v-model="smDraft.name" class="form-input" placeholder="來源名稱" />
               </div>
@@ -166,17 +170,183 @@
         </div>
       </InfoCard>
 
-      <!-- ③ D5 人工事件登錄（依賴地圖 SDK，待串接）──────────── -->
-      <InfoCard title="D5 人工事件登錄">
-        <div class="d5-placeholder">
-          <p class="d5-flow">登錄流程：路名／路口搜尋定位 → 地圖點選落點微調 → 選來源 → 選事件類型 → 送出</p>
-          <p class="d5-note">⏸ 待地圖 SDK 串接後啟用。事件標「合作通報」進入 D4 驗證狀態機，30 秒完成登錄為驗收目標。</p>
+      <!-- ③ 覆蓋區域 ──────────────────────────────────────────── -->
+      <InfoCard title="覆蓋區域">
+        <p class="section-desc">定義服務範圍內的行政分區多邊形（GeoJSON），供使用者選擇偏好區域時參照。</p>
+        <div class="item-list">
+          <div v-for="ca in store.coverageAreas" :key="ca.id" class="item-row">
+            <!-- 顯示態 -->
+            <template v-if="caEditingId !== ca.id">
+              <div class="item-info">
+                <span class="item-id mono">{{ ca.id }}</span>
+                <span class="item-name">{{ ca.name || '（未命名）' }}</span>
+                <span v-if="ca.coverageLevel" class="item-badge">{{ ca.coverageLevel }}</span>
+                <span class="item-sub">{{ ca.createdAt }}</span>
+              </div>
+              <div class="item-btns">
+                <button class="row-btn" :disabled="caAddingNew || caEditingId !== null" @click="startCaEdit(ca)">編輯</button>
+                <button class="row-btn danger" :disabled="caAddingNew || caEditingId !== null" @click="requestCaDelete(ca)">刪除</button>
+              </div>
+            </template>
+            <!-- 編輯態 -->
+            <div v-else class="item-form">
+              <div class="form-row">
+                <label class="form-label">名稱</label>
+                <input v-model="caDraft.name" class="form-input" placeholder="如：臺北市" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">等級</label>
+                <input v-model="caDraft.coverageLevel" class="form-input" placeholder="如：city / district" />
+              </div>
+              <div class="form-row ca-geo-row">
+                <label class="form-label">幾何</label>
+                <div class="ca-geo-wrap">
+                  <textarea v-model="caDraft.geometry" class="boundary-textarea ca-textarea" rows="6" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[...]}' />
+                  <p v-if="caError" class="form-error">{{ caError }}</p>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="row-btn ok" @click="requestCaUpdate(ca.id)">儲存</button>
+                <button class="row-btn" @click="cancelCaEdit">取消</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 新增表單 -->
+          <div v-if="caAddingNew" class="item-row add-row">
+            <div class="item-form">
+              <div class="form-row">
+                <label class="form-label">名稱</label>
+                <input v-model="caDraft.name" class="form-input" placeholder="如：臺北市" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">等級</label>
+                <input v-model="caDraft.coverageLevel" class="form-input" placeholder="如：city / district" />
+              </div>
+              <div class="form-row ca-geo-row">
+                <label class="form-label">幾何 <span style="color:var(--danger)">*</span></label>
+                <div class="ca-geo-wrap">
+                  <textarea v-model="caDraft.geometry" class="boundary-textarea ca-textarea" rows="6" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[...]}' />
+                  <label class="row-btn upload-label" style="margin-top:6px;display:inline-block">
+                    上傳 GeoJSON
+                    <input type="file" accept=".json,.geojson" class="file-hidden" @change="onCaFileUpload" />
+                  </label>
+                  <p v-if="caError" class="form-error">{{ caError }}</p>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="row-btn ok" @click="requestCaAdd">儲存</button>
+                <button class="row-btn" @click="caAddingNew = false; caError = ''">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <button
+            v-if="!caAddingNew && caEditingId === null"
+            class="add-btn"
+            @click="startCaAdd"
+          >＋ 新增區域</button>
         </div>
       </InfoCard>
 
-      <!-- ④ 服務區域邊界（架構留門②，規格外，待確認）──────────── -->
+      <!-- ④ 兌換品項管理 ───────────────────────────────────────── -->
+      <InfoCard title="兌換品項管理">
+        <p class="section-desc">管理兌換中心可兌換的品項及積分費率，上架品項將顯示於兌換中心供情報員選擇。</p>
+        <div class="item-list">
+          <div v-for="ri in store.redemptionItems" :key="ri.id" class="item-row">
+            <!-- 顯示態 -->
+            <template v-if="riEditingId !== ri.id">
+              <div class="item-info ri-info">
+                <span class="item-id mono">{{ ri.id }}</span>
+                <span class="item-name">{{ ri.name }}</span>
+                <span class="ri-rate mono">{{ ri.pointsRequired }} 積分 → NT${{ ri.cashValue }}</span>
+                <span class="item-badge" :class="ri.enabled ? 'badge-ok' : 'badge-dim'">
+                  {{ ri.enabled ? '上架中' : '已下架' }}
+                </span>
+                <span v-if="ri.description" class="ri-desc">{{ ri.description }}</span>
+              </div>
+              <div class="item-btns">
+                <button class="row-btn" :disabled="riAddingNew || riEditingId !== null" @click="startRiEdit(ri)">編輯</button>
+                <button class="row-btn danger" :disabled="riAddingNew || riEditingId !== null" @click="requestRiDelete(ri)">刪除</button>
+              </div>
+            </template>
+            <!-- 編輯態 -->
+            <div v-else class="item-form">
+              <div class="form-row">
+                <label class="form-label">名稱 <span style="color:var(--danger)">*</span></label>
+                <input v-model="riDraft.name" class="form-input" placeholder="如：現金回饋 NT$100" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">所需積分 <span style="color:var(--danger)">*</span></label>
+                <input v-model.number="riDraft.pointsRequired" type="number" min="1" class="form-input short mono" />
+                <label class="form-label ml">現金價值（元）<span style="color:var(--danger)">*</span></label>
+                <input v-model.number="riDraft.cashValue" type="number" min="1" class="form-input short mono" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">排列順序</label>
+                <input v-model.number="riDraft.sortOrder" type="number" min="0" class="form-input short mono" placeholder="0" />
+                <label class="form-label ml ri-enabled-label">
+                  <input type="checkbox" v-model="riDraft.enabled" class="scope-checkbox" />
+                  上架中
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="form-label">說明</label>
+                <input v-model="riDraft.description" class="form-input" placeholder="選填備註" />
+              </div>
+              <div class="form-actions">
+                <button class="row-btn ok" @click="requestRiUpdate(ri.id)">儲存</button>
+                <button class="row-btn" @click="riEditingId = null">取消</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 新增表單 -->
+          <div v-if="riAddingNew" class="item-row add-row">
+            <div class="item-form">
+              <div class="form-row">
+                <label class="form-label">名稱 <span style="color:var(--danger)">*</span></label>
+                <input v-model="riDraft.name" class="form-input" placeholder="如：現金回饋 NT$100" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">所需積分 <span style="color:var(--danger)">*</span></label>
+                <input v-model.number="riDraft.pointsRequired" type="number" min="1" class="form-input short mono" />
+                <label class="form-label ml">現金價值（元）<span style="color:var(--danger)">*</span></label>
+                <input v-model.number="riDraft.cashValue" type="number" min="1" class="form-input short mono" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">排列順序</label>
+                <input v-model.number="riDraft.sortOrder" type="number" min="0" class="form-input short mono" placeholder="0" />
+                <label class="form-label ml ri-enabled-label">
+                  <input type="checkbox" v-model="riDraft.enabled" class="scope-checkbox" />
+                  上架中
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="form-label">說明</label>
+                <input v-model="riDraft.description" class="form-input" placeholder="選填備註" />
+              </div>
+              <div class="form-actions">
+                <button class="row-btn ok" @click="requestRiAdd">儲存</button>
+                <button class="row-btn" @click="riAddingNew = false">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <button
+            v-if="!riAddingNew && riEditingId === null"
+            class="add-btn"
+            @click="startRiAdd"
+          >＋ 新增兌換品項</button>
+        </div>
+      </InfoCard>
+
       <InfoCard title="服務區域邊界">
-        <p class="section-desc">北北基服務範圍 GeoJSON 多邊形邊界；變更後立即影響任務廣播範圍計算。</p>
+        <p class="section-desc">全台服務範圍 GeoJSON 多邊形邊界；變更後立即影響任務廣播範圍計算。</p>
 
         <template v-if="!boundaryEditing">
           <pre class="boundary-code">{{ boundaryPreview }}</pre>
@@ -231,7 +401,7 @@ import Toast         from '../components/shared/Toast.vue'
 const store = useStaticDataStore()
 const toast = useToastStore()
 
-onMounted(() => { store.loadHotspots(); store.loadSources(); store.loadBoundary() })
+onMounted(() => { store.loadHotspots(); store.loadSources(); store.loadCoverageAreas(); store.loadRedemptionItems(); store.loadBoundary() })
 
 // ── 操作依據選項 ─────────────────────────────────────────────
 const DATA_REASONS = [
@@ -292,6 +462,36 @@ function onConfirm(reason) {
     case 'sm-enable':
       store.enableSource(op.id)
       toast.success(`已啟用合作來源「${op.name}」・已留跡`)
+      break
+    case 'ri-add':
+      store.addRedemptionItem(op.data)
+        .then(() => { toast.success(`已新增兌換品項「${op.data.name}」・已留跡`); riAddingNew.value = false })
+        .catch(() => toast.error('新增失敗，請稍後重試'))
+      break
+    case 'ri-update':
+      store.updateRedemptionItem(op.id, op.data)
+        .then(() => { toast.success(`已更新兌換品項「${op.data.name}」・已留跡`); riEditingId.value = null })
+        .catch(() => toast.error('更新失敗，請稍後重試'))
+      break
+    case 'ri-delete':
+      store.deleteRedemptionItem(op.id)
+        .then(() => toast.success(`已刪除兌換品項「${op.name}」・已留跡`))
+        .catch(() => toast.error('刪除失敗，請稍後重試'))
+      break
+    case 'ca-add':
+      store.addCoverageArea(op.data)
+        .then(() => { toast.success(`已新增覆蓋區域「${op.data.name || '未命名'}」・已留跡`); caAddingNew.value = false; caError.value = '' })
+        .catch(() => toast.error('新增失敗，請稍後重試'))
+      break
+    case 'ca-update':
+      store.updateCoverageArea(op.id, op.data)
+        .then(() => { toast.success(`已更新覆蓋區域「${op.data.name || '未命名'}」・已留跡`); caEditingId.value = null; caError.value = '' })
+        .catch(() => toast.error('更新失敗，請稍後重試'))
+      break
+    case 'ca-delete':
+      store.deleteCoverageArea(op.id)
+        .then(() => toast.success(`已刪除覆蓋區域「${op.name}」・已留跡`))
+        .catch(() => toast.error('刪除失敗，請稍後重試'))
       break
     case 'boundary-update':
       store.updateBoundary(op.geojson)
@@ -370,7 +570,7 @@ function startSmEdit(sm) {
 function startSmAdd() {
   smEditingId.value = null
   smAddingNew.value = true
-  smDraft.value = { name: '', scopes: [], purpose: '' }
+  smDraft.value = { name: '', scopes: [], purpose: '', sourceKey: '' }
 }
 
 function requestSmUpdate(id) {
@@ -385,7 +585,7 @@ function requestSmUpdate(id) {
 }
 
 function requestSmAdd() {
-  if (!smDraft.value.name.trim() || !smDraft.value.purpose.trim()) return
+  if (!smDraft.value.name.trim() || !smDraft.value.purpose.trim() || !smDraft.value.sourceKey.trim()) return
   const d = { ...smDraft.value, scopes: [...smDraft.value.scopes] }
   pendingOp.value = { type: 'sm-add', data: d }
   openDialog({
@@ -411,6 +611,140 @@ function requestSmEnable(sm) {
     body:  '啟用後 D5 登錄時可再次選用此來源。',
     reasons: DATA_REASONS,
   })
+}
+
+// ── § 兌換品項管理 ──────────────────────────────────────────
+const riEditingId = ref(null)
+const riAddingNew = ref(false)
+const riDraft     = ref({ name: '', pointsRequired: null, cashValue: null, description: '', sortOrder: 0, enabled: true })
+
+function startRiEdit(ri) {
+  riAddingNew.value = false
+  riEditingId.value = ri.id
+  riDraft.value = { name: ri.name, pointsRequired: ri.pointsRequired, cashValue: ri.cashValue, description: ri.description, sortOrder: ri.sortOrder, enabled: ri.enabled }
+}
+
+function startRiAdd() {
+  riEditingId.value = null
+  riAddingNew.value = true
+  riDraft.value = { name: '', pointsRequired: null, cashValue: null, description: '', sortOrder: 0, enabled: true }
+}
+
+function _riValid() {
+  return riDraft.value.name.trim() && riDraft.value.pointsRequired > 0 && riDraft.value.cashValue > 0
+}
+
+function requestRiUpdate(id) {
+  if (!_riValid()) return
+  const d = { ...riDraft.value }
+  pendingOp.value = { type: 'ri-update', id, data: d }
+  openDialog({
+    title:   `確認更新兌換品項「${d.name}」？`,
+    body:    `費率：<b>${d.pointsRequired} 積分 → NT$${d.cashValue}</b>`,
+    reasons: DATA_REASONS,
+  })
+}
+
+function requestRiAdd() {
+  if (!_riValid()) return
+  const d = { ...riDraft.value }
+  pendingOp.value = { type: 'ri-add', data: d }
+  openDialog({
+    title:   `確認新增兌換品項「${d.name}」？`,
+    body:    `費率：<b>${d.pointsRequired} 積分 → NT$${d.cashValue}</b>`,
+    reasons: DATA_REASONS,
+  })
+}
+
+function requestRiDelete(ri) {
+  pendingOp.value = { type: 'ri-delete', id: ri.id, name: ri.name }
+  openDialog({
+    title:   `確認刪除兌換品項「${ri.name}」？`,
+    body:    '刪除後此品項將從兌換中心移除，此操作無法復原。',
+    reasons: DATA_REASONS,
+  })
+}
+
+// ── § 覆蓋區域 ─────────────────────────────────────────────
+const caEditingId = ref(null)
+const caAddingNew = ref(false)
+const caError     = ref('')
+const caDraft     = ref({ name: '', coverageLevel: '', geometry: '' })
+
+function startCaEdit(ca) {
+  caAddingNew.value = false
+  caEditingId.value = ca.id
+  caError.value     = ''
+  caDraft.value = {
+    name:          ca.name ?? '',
+    coverageLevel: ca.coverageLevel ?? '',
+    geometry:      ca.geometry ? JSON.stringify(ca.geometry, null, 2) : '',
+  }
+}
+
+function startCaAdd() {
+  caEditingId.value = null
+  caAddingNew.value = true
+  caError.value     = ''
+  caDraft.value     = { name: '', coverageLevel: '', geometry: '' }
+}
+
+function cancelCaEdit() {
+  caEditingId.value = null
+  caError.value     = ''
+}
+
+function parseCaGeometry() {
+  const raw = caDraft.value.geometry.trim()
+  if (!raw) { caError.value = '幾何（GeoJSON）為必填欄位'; return null }
+  try { return JSON.parse(raw) } catch { caError.value = 'GeoJSON 格式錯誤，請重新檢查 JSON 語法。'; return null }
+}
+
+function requestCaUpdate(id) {
+  const geometry = parseCaGeometry()
+  if (!geometry) return
+  caError.value = ''
+  const d = { name: caDraft.value.name || null, coverageLevel: caDraft.value.coverageLevel || null, geometry }
+  pendingOp.value = { type: 'ca-update', id, data: d }
+  openDialog({
+    title:   `確認更新覆蓋區域「${d.name || '未命名'}」？`,
+    body:    `等級：<b>${d.coverageLevel || '（未設定）'}</b>`,
+    reasons: DATA_REASONS,
+  })
+}
+
+function requestCaAdd() {
+  const geometry = parseCaGeometry()
+  if (!geometry) return
+  caError.value = ''
+  const d = { name: caDraft.value.name || null, coverageLevel: caDraft.value.coverageLevel || null, geometry }
+  pendingOp.value = { type: 'ca-add', data: d }
+  openDialog({
+    title:   `確認新增覆蓋區域「${d.name || '未命名'}」？`,
+    body:    `等級：<b>${d.coverageLevel || '（未設定）'}</b>`,
+    reasons: DATA_REASONS,
+  })
+}
+
+function requestCaDelete(ca) {
+  pendingOp.value = { type: 'ca-delete', id: ca.id, name: ca.name || '未命名' }
+  openDialog({
+    title:   `確認刪除覆蓋區域「${ca.name || '未命名'}」？`,
+    body:    '刪除後此區域將從使用者選擇清單中移除，此操作無法復原。',
+    reasons: DATA_REASONS,
+  })
+}
+
+function onCaFileUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (evt) => {
+    caDraft.value.geometry = evt.target.result
+    caError.value = ''
+    e.target.value = ''
+  }
+  reader.readAsText(file)
 }
 
 // ── § 服務區域邊界 ─────────────────────────────────────────
@@ -668,27 +1002,17 @@ function requestBoundaryUpdate() {
 }
 .scope-checkbox { accent-color: var(--accent); cursor: pointer; }
 
-/* ── § D5 人工事件登錄 ── */
-.d5-placeholder {
-  display: grid;
-  gap: 10px;
-  padding: 14px 0;
-}
-.d5-flow {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.8;
-}
-.d5-note {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px dashed var(--line);
-  border-radius: 6px;
-  line-height: 1.6;
-}
+
+/* ── § 兌換品項管理 ── */
+.ri-info { flex-direction: column; align-items: flex-start; gap: 4px; }
+.ri-rate { font-size: 12px; color: var(--accent); }
+.ri-desc { font-size: 12px; color: var(--text-secondary); }
+.ri-enabled-label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-primary); cursor: pointer; white-space: nowrap; }
+
+/* ── § 覆蓋區域 ── */
+.ca-geo-row { align-items: flex-start; }
+.ca-geo-wrap { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.ca-textarea { width: 100%; box-sizing: border-box; }
 
 /* ── § 服務區域邊界 ── */
 .section-desc {
